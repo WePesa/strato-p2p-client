@@ -304,7 +304,6 @@ main = do
   runResourceT $ do
       dbs <- openDBs "h"
       _ <- flip runStateT (Context
-                           (hashDB' dbs)
                            (sqlDB' dbs)
                            [] 0 [] dataset []) $
            runEthCryptM myPriv otherPubKey ipAddress (fromIntegral thePort) $ do

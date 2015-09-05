@@ -22,7 +22,6 @@ import Blockchain.SHA
 
 data Context =
   Context {
-    contextHashDB::HashDB,
     contextSQLDB::SQLDB,
     neededBlockHashes::[SHA],
     pingCount::Int,
@@ -32,9 +31,6 @@ data Context =
     }
 
 type ContextM = StateT Context (ResourceT IO)
-
-instance HasHashDB ContextM where
-  getHashDB = fmap contextHashDB get
 
 instance HasSQLDB ContextM where
   getSQLDB = fmap contextSQLDB get
