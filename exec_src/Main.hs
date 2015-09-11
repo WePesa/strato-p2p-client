@@ -290,9 +290,8 @@ main = do
 
 --  putStrLn $ "my UDP pubkey is: " ++ (show $ H.derivePubKey $ prvKey)
   putStrLn $ "my NodeID is: " ++ (show $ B16.encode $ B.pack $ pointToBytes $ hPubKeyToPubKey $ H.derivePubKey $ H.PrvKey $ fromIntegral myPriv)
-    
-  otherPubKey <- liftIO $ getServerPubKey (H.PrvKey $ fromIntegral myPriv) ipAddress thePort
 
+  otherPubKey <- getServerPubKey (H.PrvKey $ fromIntegral myPriv) ipAddress thePort
 
 --  putStrLn $ "server public key is : " ++ (show otherPubKey)
   putStrLn $ "server public key is : " ++ (show $ B16.encode $ B.pack $ pointToBytes otherPubKey)
