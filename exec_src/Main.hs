@@ -5,6 +5,7 @@ module Main (
   ) where
 
 import Control.Monad.IO.Class
+import Control.Monad.Logger
 import Control.Monad.State
 import Control.Monad.Trans.Resource
 import Crypto.PubKey.ECC.DH
@@ -12,6 +13,7 @@ import Crypto.Types.PubKey.ECC
 import Crypto.Random
 import qualified Data.ByteString as B
 import Data.Time.Clock
+import qualified Database.Persist.Postgresql as SQL
 import HFlags
 import qualified Network.Haskoin.Internals as H
 
@@ -26,6 +28,7 @@ import Blockchain.Constants
 import Blockchain.Context
 import Blockchain.Data.Address
 import Blockchain.Data.BlockDB
+import Blockchain.Data.DataDefs
 --import Blockchain.Data.SignedTransaction
 import Blockchain.Data.Transaction
 import Blockchain.Data.Wire
@@ -301,9 +304,12 @@ main = do
   dataset <- return "" -- mmapFileByteString "dataset0" Nothing
 
   runResourceT $ do
-      dbs <- openDBs "h"
+      pool <- runNoLoggingT $ SQL.createPostgresqlPool
+              "host=localhost dbname=eth user=postgres password=api port=5432" 20
+      SQL.runSqlPool (SQL.runMigration migrateAll) pool
+      
       _ <- flip runStateT (Context
-                           (sqlDB' dbs)
+                           pool
                            [] 0 [] dataset []) $
            runEthCryptM myPriv otherPubKey ipAddress (fromIntegral thePort) $ do
               

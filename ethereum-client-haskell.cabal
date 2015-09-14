@@ -44,9 +44,11 @@ executable ethereumH
                  , hminer
                  , leveldb-haskell
                  , mmap
+                 , monad-logger
                  , mtl
                  , network
                  , nibblestring
+                 , persistent-postgresql
                  , resourcet
                  , SHA2
                  , time
