@@ -69,18 +69,18 @@ handleNewBlockHashes [] = do
 
   liftIO $ putStrLn $ CL.red "peer unexpectedly responded with no blocks, so for now I will reset the sync"
 
-  clearNeededBlockHashes
+  lift clearNeededBlockHashes
   
 handleNewBlockHashes blockHashes = do
   result <- lift $ findFirstHashAlreadyInDB blockHashes
   case result of
     Nothing -> do
                 --liftIO $ putStrLn "Requesting more block hashes"
-                addNeededBlockHashes blockHashes
+                lift $ addNeededBlockHashes blockHashes
                 sendMsg $ GetBlockHashes [last blockHashes] 0x500
     Just hashInDB -> do
                 liftIO $ putStrLn $ "Found a serverblock already in our database: " ++ format hashInDB
-                addNeededBlockHashes $ takeWhile (/= hashInDB) blockHashes
+                lift $ addNeededBlockHashes $ takeWhile (/= hashInDB) blockHashes
                 askForSomeBlocks
   
 askForSomeBlocks::EthCryptM ContextM ()
