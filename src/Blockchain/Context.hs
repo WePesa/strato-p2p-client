@@ -5,7 +5,9 @@ module Blockchain.Context (
   ContextM,
   getDebugMsg,
   addDebugMsg,
-  clearDebugMsg
+  clearDebugMsg,
+  addNeededBlockHashes,
+  clearNeededBlockHashes
   ) where
 
 
@@ -66,3 +68,14 @@ clearDebugMsg::ContextM ()
 clearDebugMsg = do
   cxt <- get
   put cxt{vmTrace=[]}
+
+addNeededBlockHashes::[SHA]->ContextM ()
+addNeededBlockHashes blockHashes = do
+  cxt <- get
+  put cxt{neededBlockHashes=reverse blockHashes ++ neededBlockHashes cxt}
+
+clearNeededBlockHashes::ContextM ()
+clearNeededBlockHashes = do
+  cxt <- get
+  put cxt{neededBlockHashes=[]}
+
