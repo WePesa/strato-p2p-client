@@ -1,4 +1,4 @@
-{-# LANGUAGE OverloadedStrings, TypeSynonymInstances, FlexibleInstances #-}
+{-# LANGUAGE OverloadedStrings, TypeSynonymInstances, FlexibleInstances, ScopedTypeVariables #-}
 
 module Blockchain.Context (
   Context(..),
@@ -7,18 +7,19 @@ module Blockchain.Context (
   addDebugMsg,
   clearDebugMsg,
   addNeededBlockHashes,
-  clearNeededBlockHashes
+  clearNeededBlockHashes,
+  getHashCount
   ) where
 
 
 import Control.Monad.Trans.Resource
 import Control.Monad.State
 import qualified Data.ByteString as B
+import qualified Database.Esqueleto as E
 import qualified Database.Persist.Postgresql as SQL
 
 import Blockchain.Data.DataDefs
 import Blockchain.Data.Peer
-import Blockchain.DB.HashDB
 import Blockchain.DB.SQLDB
 import Blockchain.SHA
 
@@ -27,7 +28,6 @@ import Blockchain.SHA
 data Context =
   Context {
     contextSQLDB::SQLDB,
-    neededBlockHashes::[SHA],
     pingCount::Int,
     peers::[Peer],
     miningDataset::B.ByteString,
@@ -73,16 +73,24 @@ clearDebugMsg = do
 
 addNeededBlockHashes::[SHA]->ContextM ()
 addNeededBlockHashes blockHashes = do
-  cxt <- get
-  put cxt{neededBlockHashes=reverse blockHashes ++ neededBlockHashes cxt}
-
   db <- getSQLDB
   flip SQL.runSqlPool db $
     forM_ blockHashes $ \blockHash -> SQL.insert $ NeededBlockHash $ blockHash
 
-
 clearNeededBlockHashes::ContextM ()
 clearNeededBlockHashes = do
-  cxt <- get
-  put cxt{neededBlockHashes=[]}
+  db <- getSQLDB
+  flip SQL.runSqlPool db $
+    E.delete $ E.from $ \(_::E.SqlExpr (E.Entity NeededBlockHash)) -> return ()
 
+getHashCount::HasSQLDB m=>m Int
+getHashCount = do
+  res <- 
+    sqlQuery $
+      E.select $
+        E.from $ \(_::E.SqlExpr (E.Entity NeededBlockHash)) -> do
+          return E.countRows
+
+  case res of
+    [x] -> return $ E.unValue x
+    _ -> error "wrong format in response from SQL call in getHashCount"

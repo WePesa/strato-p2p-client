@@ -126,10 +126,10 @@ handleNewBlocks blocks = do
 
   maybeParentBlock <- lift $ getBlockLite (blockDataParentHash $ blockBlockData $ head $ orderedBlocks) --head OK, [] weeded out
 
-  cxt <- lift get
+  hashCount <- lift $ getHashCount
 
-  case (neededBlockHashes cxt, maybeParentBlock) of
-    ([], Nothing) -> do
+  case (hashCount, maybeParentBlock) of
+    (0, Nothing) -> do
       liftIO $ putStrLn $ CL.red $ "Resynching!!!!!!!!"
       handleNewBlockHashes [blockHash $ head orderedBlocks] -- head OK, [] weeded out
     (_, Nothing) ->

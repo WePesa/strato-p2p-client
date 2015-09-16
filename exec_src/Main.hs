@@ -314,7 +314,7 @@ main = do
       
       _ <- flip runStateT (Context
                            pool
-                           [] 0 [] dataset []) $
+                           0 [] dataset []) $
            runEthCryptM myPriv otherPubKey ipAddress (fromIntegral thePort) $ do
               
              sendMsg =<< liftIO (mkHello myPublic)
