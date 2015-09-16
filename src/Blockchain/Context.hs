@@ -14,7 +14,9 @@ module Blockchain.Context (
 import Control.Monad.Trans.Resource
 import Control.Monad.State
 import qualified Data.ByteString as B
+import qualified Database.Persist.Postgresql as SQL
 
+import Blockchain.Data.DataDefs
 import Blockchain.Data.Peer
 import Blockchain.DB.HashDB
 import Blockchain.DB.SQLDB
@@ -73,6 +75,11 @@ addNeededBlockHashes::[SHA]->ContextM ()
 addNeededBlockHashes blockHashes = do
   cxt <- get
   put cxt{neededBlockHashes=reverse blockHashes ++ neededBlockHashes cxt}
+
+  db <- getSQLDB
+  flip SQL.runSqlPool db $
+    forM_ blockHashes $ \blockHash -> SQL.insert $ NeededBlockHash $ blockHash
+
 
 clearNeededBlockHashes::ContextM ()
 clearNeededBlockHashes = do

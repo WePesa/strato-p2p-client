@@ -92,6 +92,7 @@ library
                  , mmap
                  , network
                  , nibblestring
+                 , persistent-postgresql
                  , resourcet
                  , safe
                  , SHA2

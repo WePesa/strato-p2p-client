@@ -1,3 +1,4 @@
+{-# LANGUAGE ScopedTypeVariables #-}
 
 module Blockchain.Display (
   addPingCount,
@@ -7,10 +8,13 @@ module Blockchain.Display (
 
 import Control.Monad.IO.Class
 import Control.Monad.Trans.State
+import qualified Database.Esqueleto as E
 
 import qualified Blockchain.Colors as CL
 import Blockchain.Context
+import Blockchain.Data.DataDefs
 import Blockchain.Data.Peer
+import Blockchain.DB.SQLDB
 import Blockchain.Format
 import Blockchain.Data.Wire
 
@@ -18,13 +22,27 @@ setTitle::String->IO()
 setTitle value = do
   putStr $ "\ESC]0;" ++ value ++ "\007"
 
+getHashCount::HasSQLDB m=>m Int
+getHashCount = do
+  res <- 
+    sqlQuery $
+      E.select $
+        E.from $ \(bh::E.SqlExpr (E.Entity NeededBlockHash)) -> do
+          return E.countRows
+
+  case res of
+    [x] -> return $ E.unValue x
+    _ -> error "wrong format in response from SQL call in getHashCount"
+          
 updateStatus::ContextM ()
 updateStatus = do
   cxt <- get
+  count <- getHashCount
+  
   liftIO $ setTitle $
     "pingCount = " ++ show (pingCount cxt)
     ++ ", peer count=" ++ show (length $ peers cxt)
-    ++ ", hashes requested=" ++ show (length $ neededBlockHashes cxt)
+    ++ ", hashes requested=" ++ show count
 
 addPingCount::ContextM ()
 addPingCount = do

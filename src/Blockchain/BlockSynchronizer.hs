@@ -1,6 +1,8 @@
 module Blockchain.BlockSynchronizer (
                           handleNewBlockHashes,
-                          handleNewBlocks
+                          handleNewBlocks,
+                          removeLoadedHashes,
+                          getLowestHashes
                          ) where
 
 import Control.Monad.IO.Class
@@ -9,6 +11,7 @@ import Control.Monad.Trans.Resource
 import Data.Function
 import Data.List
 import qualified Database.Esqueleto as E
+import GHC.Int
 import Safe
 
 import Blockchain.BlockChain
@@ -55,6 +58,30 @@ getBlockExists h = do
                      E.where_ (bd E.^. BlockDataRefHash E.==. E.val h)
                      return $ bd E.^. BlockDataRefHash
 
+removeLoadedHashes :: (MonadResource m, HasSQLDB m)=>m ()
+removeLoadedHashes = do
+  sqlQuery $
+    E.delete $
+      E.from $ \bh -> do
+        E.where_ (bh E.^. NeededBlockHashHash `E.in_` (
+          E.subList_select $
+            E.from $ \bd -> do
+              return (bd E.^. BlockDataRefHash)))
+
+getLowestHashes :: (MonadResource m, HasSQLDB m)=>Int64->m [SHA]
+getLowestHashes n = do
+  res <- 
+    sqlQuery $
+      E.select $
+        E.from $ \bh -> do
+          E.orderBy [E.desc $ bh E.^. NeededBlockHashId]
+          E.limit n
+          return (bh E.^. NeededBlockHashHash)
+
+  let q = res :: [E.Value SHA]
+
+  return $ map E.unValue res
+
 findFirstHashAlreadyInDB::[SHA]->ContextM (Maybe SHA)
 findFirstHashAlreadyInDB hashes =
   fmap headMay $ filterM getBlockExists hashes
@@ -85,13 +112,10 @@ handleNewBlockHashes blockHashes = do
   
 askForSomeBlocks::EthCryptM ContextM ()
 askForSomeBlocks = do
-  cxt <- lift get
-  if null (neededBlockHashes cxt)
-    then return ()
-    else do
-      let (firstBlocks, lastBlocks) = splitAt 128 (neededBlockHashes cxt)
-      lift $ put cxt{neededBlockHashes=lastBlocks}
-      sendMsg $ GetBlocks firstBlocks
+  lift $ removeLoadedHashes
+  neededHashes <- lift $ getLowestHashes 128
+  when (length neededHashes > 0) $
+    sendMsg $ GetBlocks neededHashes
 
 
 handleNewBlocks::[Block]->EthCryptM ContextM ()

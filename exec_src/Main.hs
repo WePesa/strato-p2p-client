@@ -175,7 +175,11 @@ handleMsg m = do
     Status{latestHash=lh, genesisHash=gh} -> do
       genesisBlockHash <- lift getGenesisBlockHash
       when (gh /= genesisBlockHash) $ error "Wrong genesis block hash!!!!!!!!"
-      handleNewBlockHashes [lh]
+      lift removeLoadedHashes
+      previousLowestHash <- lift $ getLowestHashes 1
+      case previousLowestHash of
+        [] -> handleNewBlockHashes [lh]
+        [x] -> sendMsg $ GetBlockHashes [x] 0x500
     GetTransactions _ -> do
       sendMsg $ Transactions []
       --liftIO $ sendMessage handle GetTransactions
