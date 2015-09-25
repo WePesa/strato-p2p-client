@@ -78,8 +78,6 @@ getLowestHashes n = do
           E.limit n
           return (bh E.^. NeededBlockHashHash)
 
-  let q = res :: [E.Value SHA]
-
   return $ map E.unValue res
 
 findFirstHashAlreadyInDB::[SHA]->ContextM (Maybe SHA)
@@ -124,7 +122,7 @@ handleNewBlocks blocks = do
   let orderedBlocks =
         sortBy (compare `on` blockDataNumber . blockBlockData) blocks
 
-  maybeParentBlock <- lift $ getBlockLite (blockDataParentHash $ blockBlockData $ head $ orderedBlocks) --head OK, [] weeded out
+  maybeParentBlock <- lift $ getBlock (blockDataParentHash $ blockBlockData $ head $ orderedBlocks) --head OK, [] weeded out
 
   hashCount <- lift $ getHashCount
 

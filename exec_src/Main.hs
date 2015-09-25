@@ -35,7 +35,6 @@ import Blockchain.Data.Wire
 import Blockchain.Database.MerklePatricia
 import Blockchain.DB.DetailsDB
 --import Blockchain.DB.ModifyStateDB
-import Blockchain.DBM
 import Blockchain.Display
 import Blockchain.PeerUrls
 import Blockchain.Options
@@ -180,6 +179,7 @@ handleMsg m = do
       case previousLowestHash of
         [] -> handleNewBlockHashes [lh]
         [x] -> sendMsg $ GetBlockHashes [x] 0x500
+        _ -> error "unexpected multiple values in call to getLowetHashes 1"
     GetTransactions _ -> do
       sendMsg $ Transactions []
       --liftIO $ sendMessage handle GetTransactions

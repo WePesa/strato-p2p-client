@@ -11,7 +11,6 @@ import Control.Monad.Trans.State
 import qualified Blockchain.Colors as CL
 import Blockchain.Context
 import Blockchain.Data.Peer
-import Blockchain.DB.SQLDB
 import Blockchain.Format
 import Blockchain.Data.Wire
 
