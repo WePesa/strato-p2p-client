@@ -15,11 +15,12 @@ import Blockchain.Data.BlockDB
 --import Debug.Trace
 
 addBlocks::[Block]->ContextM ()
-addBlocks blocks = 
-  forM_ blocks $ \block -> do
-    before <- liftIO $ getPOSIXTime 
-    _ <- putBlock block
-    after <- liftIO $ getPOSIXTime 
+addBlocks blocks = do
+  before <- liftIO $ getPOSIXTime 
 
-    liftIO $ putStrLn $ "#### Block insertion time = " ++ printf "%.4f" (realToFrac $ after - before::Double) ++ "s"
+  putBlocks blocks
+
+  after <- liftIO $ getPOSIXTime 
+
+  liftIO $ putStrLn $ "#### Added " ++ show (length blocks) ++ " blocks, insertion time = " ++ printf "%.4f" (realToFrac $ after - before::Double) ++ "s"
 
