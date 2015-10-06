@@ -264,11 +264,11 @@ theCurve = getCurveByName SEC_p256k1
 
 
 hPubKeyToPubKey::H.PubKey->Point
-hPubKeyToPubKey (H.PubKey hPoint) = Point (fromIntegral x) (fromIntegral y)
+hPubKeyToPubKey pubKey = Point (fromIntegral x) (fromIntegral y)
   where
     x = fromMaybe (error "getX failed in prvKey2Address") $ H.getX hPoint
     y = fromMaybe (error "getY failed in prvKey2Address") $ H.getY hPoint
-hPubKeyToPubKey (H.PubKeyU _) = error "PubKeyU not supported in hPubKeyToPUbKey yet"
+    hPoint = H.pubKeyPoint pubKey
 
 main::IO ()    
 main = do
@@ -296,9 +296,9 @@ main = do
   
 
 --  putStrLn $ "my UDP pubkey is: " ++ (show $ H.derivePubKey $ prvKey)
-  putStrLn $ "my NodeID is: " ++ (show $ B16.encode $ B.pack $ pointToBytes $ hPubKeyToPubKey $ H.derivePubKey $ H.PrvKey $ fromIntegral myPriv)
+  putStrLn $ "my NodeID is: " ++ (show $ B16.encode $ B.pack $ pointToBytes $ hPubKeyToPubKey $ H.derivePubKey $ fromMaybe (error "invalid private number in main") $ H.makePrvKey $ fromIntegral myPriv)
 
-  otherPubKey <- getServerPubKey (H.PrvKey $ fromIntegral myPriv) ipAddress thePort
+  otherPubKey <- getServerPubKey (fromMaybe (error "invalid private number in main") $ H.makePrvKey $ fromIntegral myPriv) ipAddress thePort
 
 --  putStrLn $ "server public key is : " ++ (show otherPubKey)
   putStrLn $ "server public key is : " ++ (show $ B16.encode $ B.pack $ pointToBytes otherPubKey)
