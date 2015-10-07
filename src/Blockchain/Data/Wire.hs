@@ -11,7 +11,6 @@ module Blockchain.Data.Wire (
 
 import Crypto.Types.PubKey.ECC
 import qualified Data.ByteString as B
-import Data.Functor
 import Data.List
 import Data.Word
 import Numeric

@@ -4,7 +4,6 @@ module Blockchain.BlockChain (
   addBlocks
   ) where
 
-import Control.Monad
 import Control.Monad.IO.Class
 import Data.Time.Clock.POSIX
 import Text.Printf
@@ -18,7 +17,7 @@ addBlocks::[Block]->ContextM ()
 addBlocks blocks = do
   before <- liftIO $ getPOSIXTime 
 
-  putBlocks blocks
+  _ <- putBlocks blocks
 
   after <- liftIO $ getPOSIXTime 
 
