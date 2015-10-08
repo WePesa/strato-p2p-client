@@ -22,39 +22,22 @@ executable ethereumH
     build-depends: 
                    base >= 4 && < 5
                  , base16-bytestring
-                 , binary
                  , bytestring
-                 , containers
-                 , cryptohash
                  , crypto-pubkey
                  , crypto-pubkey-types
                  , crypto-random
-                 , data-default
-                 , directory
-                 , either
-                 , entropy
                  , ethereum-data-sql
                  , ethereum-encryption
                  , ethereum-merkle-patricia-db
-                 , ethereum-rlp
                  , ethereum-util
-                 , filepath
                  , haskoin
                  , hflags
-                 , hminer
-                 , leveldb-haskell
-                 , mmap
                  , monad-logger
                  , mtl
-                 , network
-                 , nibblestring
                  , persistent-postgresql
                  , resourcet
-                 , SHA2
                  , time
                  , transformers
-                 , vector
-                 , ansi-wl-pprint
                  , ethereum-client-haskell
     main-is: Main.hs
     ghc-options: -Wall -O2
@@ -66,39 +49,24 @@ library
     build-depends: 
                    base >= 4 && < 5
                  , array
-                 , base16-bytestring
                  , binary
                  , bytestring
-                 , containers
                  , cryptohash
                  , crypto-pubkey-types
-                 , data-default
-                 , directory
-                 , either
-                 , entropy
                  , esqueleto
                  , ethereum-data-sql
                  , ethereum-encryption
-                 , ethereum-merkle-patricia-db
                  , ethereum-rlp
                  , ethereum-util
-                 , filepath
-                 , haskoin
                  , hflags
                  , hminer
-                 , IfElse
-                 , leveldb-haskell
                  , mtl
-                 , mmap
                  , network
-                 , nibblestring
                  , persistent-postgresql
                  , resourcet
                  , safe
-                 , SHA2
                  , time
                  , transformers
-                 , vector
                  , ansi-wl-pprint
     exposed-modules: 
                    Blockchain.BlockChain
@@ -117,14 +85,3 @@ library
     ghc-options: -Wall -O2
     buildable: True
     hs-source-dirs: src
-
-Test-Suite test-ethereumH
-    default-language: Haskell98
-  type:               exitcode-stdio-1.0
-  main-is:            Main.hs
-  hs-source-dirs:     test, src
-  build-depends:      base >= 4 && < 5
-                    , test-framework
-                    , test-framework-hunit
-                    , HUnit
-                    , containers
