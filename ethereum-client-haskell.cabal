@@ -59,7 +59,7 @@ library
                  , ethereum-rlp
                  , ethereum-util
                  , hflags
-                 , hminer
+--                 , hminer
                  , mtl
                  , network
                  , persistent-postgresql
@@ -78,7 +78,7 @@ library
                    Blockchain.Data.Wire
                    Blockchain.Display
 --                   Blockchain.JCommand
-                   Blockchain.Mining
+--                   Blockchain.Mining
                    Blockchain.Options
                    Blockchain.PeerUrls
 --                   Blockchain.SampleTransactions
