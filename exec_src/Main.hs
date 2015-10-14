@@ -310,7 +310,6 @@ main = do
   runResourceT $ do
       pool <- runNoLoggingT $ SQL.createPostgresqlPool
               "host=localhost dbname=eth user=postgres password=api port=5432" 20
-      SQL.runSqlPool (SQL.runMigration migrateAll) pool
       
       _ <- flip runStateT (Context
                            pool
