@@ -1,4 +1,7 @@
 
+--TODO : Take this next line out
+{-# OPTIONS_GHC -fno-warn-orphans #-}
+
 module Blockchain.Data.Wire (
   Message(..),
   Capability(..),
@@ -8,16 +11,13 @@ module Blockchain.Data.Wire (
 
 import Crypto.Types.PubKey.ECC
 import qualified Data.ByteString as B
-import Data.Functor
 import Data.List
 import Data.Word
-import Network.Haskoin.Crypto
 import Numeric
 import Text.PrettyPrint.ANSI.Leijen hiding ((<$>))
 
 import qualified Blockchain.Colors as CL
 import Blockchain.Data.BlockDB
-import Blockchain.Data.DataDefs
 import Blockchain.Data.Peer
 import Blockchain.Data.RLP
 import Blockchain.Data.Transaction
@@ -103,7 +103,7 @@ data Message =
   Pong |
   GetPeers |
   Peers [Peer] |
-  Status { protocolVersion::Int, networkID::String, totalDifficulty::Int, latestHash::SHA, genesisHash:: SHA } |
+  Status { protocolVersion::Int, networkID::Int, totalDifficulty::Int, latestHash::SHA, genesisHash:: SHA } |
   QqqqStatus Int |
   Transactions [Transaction] | 
   GetBlocks [SHA] |
@@ -118,6 +118,7 @@ data Message =
 
 instance Format Point where
   format (Point x y) = padZeros 64 (showHex x "") ++ padZeros 64 (showHex y "")
+  format PointO = "PointO"
 
 instance Format Message where
   format Hello{version=ver, clientId=c, capability=cap, port=p, nodeId=n} =
@@ -137,8 +138,8 @@ instance Format Message where
       "    protocolVersion: " ++ show ver ++ "\n" ++
       "    networkID: " ++ show nID ++ "\n" ++
       "    totalDifficulty: " ++ show d ++ "\n" ++
-      "    latestHash: " ++ show (pretty lh) ++ "\n" ++
-      "    genesisHash: " ++ show (pretty gh)
+      "    latestHash: " ++ format lh ++ "\n" ++
+      "    genesisHash: " ++ format gh
   format (QqqqStatus ver) =
     CL.blue "QqqqStatus " ++
       "    protocolVersion: " ++ show ver
@@ -155,22 +156,23 @@ instance Format Message where
 
   format (GetBlocks shas) =
     CL.blue "GetBlocks:" ++ 
-    tab ("\n" ++ intercalate "\n    " (show . pretty <$> shas))
+    tab ("\n" ++ intercalate "\n    " (format <$> shas))
   format (Blocks blocks) = CL.blue "Blocks:" ++ tab("\n" ++ intercalate "\n    " (format <$> blocks))
   format (GetBlockHashes pSHAs numChild) =
     CL.blue "GetBlockHashes" ++ " (max: " ++ show numChild ++ "):\n    " ++
-    intercalate ",\n    " (show . pretty <$> pSHAs)
+    intercalate ",\n    " (format <$> pSHAs)
   format (NewBlockPacket block d) = CL.blue "NewBlockPacket" ++ " (" ++ show d ++ ")" ++ tab ("\n" ++ format block)
   format (PacketCount c) =
     CL.blue "PacketCount:" ++ show c
   format QqqqPacket = CL.blue "QqqqPacket"
-  format (GetTransactions transactions) = CL.blue "GetTransactions"  ++ tab("\n" ++ intercalate "\n    " (show . pretty <$> transactions))
+  format (GetTransactions transactions) = CL.blue "GetTransactions"  ++ tab("\n" ++ intercalate "\n    " (format <$> transactions))
   format (WhisperProtocolVersion ver) = CL.blue "WhisperProtocolVersion " ++ show ver
 
 
 instance RLPSerializable Point where
   rlpEncode (Point x y) =
     rlpEncode $ B.pack $ (word256ToBytes $ fromInteger x) ++ (word256ToBytes $ fromInteger y)
+  rlpEncode PointO = error "rlpEncode for Point called for PointO"
   rlpDecode o =
     Point (toInteger $ bytesToWord256 $ B.unpack x) (toInteger $ bytesToWord256 $ B.unpack y)
     where
@@ -189,7 +191,7 @@ obj2WireMessage 0x5 (RLPArray peers) = Peers $ rlpDecode <$> peers
 obj2WireMessage 0x10 (RLPArray [ver, nID, d, lh, gh]) = 
     Status {
   protocolVersion=fromInteger $ rlpDecode ver,
-  networkID = rlpDecode nID,
+  networkID = fromInteger $ rlpDecode nID,
   totalDifficulty = fromInteger $ rlpDecode d,
   latestHash=rlpDecode lh,
   genesisHash=rlpDecode gh
@@ -249,7 +251,7 @@ wireMessage2Obj Pong = (0x3, RLPArray [])
 wireMessage2Obj GetPeers = (0x4, RLPArray [])
 wireMessage2Obj (Peers peers) = (0x5, RLPArray $ (rlpEncode <$> peers))
 wireMessage2Obj (Status ver nID d lh gh) =
-    (0x10, RLPArray [rlpEncode $ toInteger ver, rlpEncode nID, rlpEncode $ toInteger d, rlpEncode lh, rlpEncode gh])
+    (0x10, RLPArray [rlpEncode $ toInteger ver, rlpEncode $ toInteger nID, rlpEncode $ toInteger d, rlpEncode lh, rlpEncode gh])
 wireMessage2Obj (QqqqStatus ver) = (0x10, RLPArray [rlpEncode $ toInteger ver])
 wireMessage2Obj (GetTransactions transactions) = (0x11, RLPArray (rlpEncode <$> transactions))
 wireMessage2Obj (Transactions transactions) = (0x12, RLPArray (rlpEncode <$> transactions))

@@ -73,7 +73,3 @@ right now).
 is compiled from a Haskell DSL language, and is fully type checked at compile time).
 
 - As mentioned above, the Ethereum network is changing very fast, so what works today might not work tomorrow....
-
-
-
-

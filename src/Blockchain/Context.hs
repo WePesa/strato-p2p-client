@@ -1,70 +1,43 @@
-{-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE OverloadedStrings, TypeSynonymInstances, FlexibleInstances, ScopedTypeVariables #-}
 
 module Blockchain.Context (
   Context(..),
   ContextM,
-  isDebugEnabled,
-  getStorageKeyVal',
-  getAllStorageKeyVals',
   getDebugMsg,
   addDebugMsg,
   clearDebugMsg,
-  putStorageKeyVal',
-  deleteStorageKey',
-  incrementNonce,
-  getNewAddress
+  addNeededBlockHashes,
+  clearNeededBlockHashes,
+  getHashCount
   ) where
 
 
-import Control.Monad.IfElse
-import Control.Monad.IO.Class
-import Control.Monad.State
 import Control.Monad.Trans.Resource
+import Control.Monad.State
 import qualified Data.ByteString as B
-import qualified Data.NibbleString as N
-import qualified Data.Vector as V
-import System.Directory
-import System.FilePath
-import System.IO
-import System.IO.MMap
-import Text.PrettyPrint.ANSI.Leijen hiding ((<$>), (</>))
+import qualified Database.Esqueleto as E
+import qualified Database.Persist.Postgresql as SQL
 
-import Blockchain.Constants
-import Blockchain.DBM
-import Blockchain.Data.Peer
-import Blockchain.Data.Address
-import Blockchain.Data.AddressStateDB
 import Blockchain.Data.DataDefs
-import Blockchain.Data.RLP
-import qualified Blockchain.Database.MerklePatricia as MPDB
-import qualified Blockchain.Database.MerklePatricia.Internal as MPDB
-import Blockchain.ExtDBs
-import Blockchain.ExtWord
+import Blockchain.Data.Peer
+import Blockchain.DB.SQLDB
 import Blockchain.SHA
-import Blockchain.Util
-import Cache
-import Constants
-import qualified Data.NibbleString as N
 
 --import Debug.Trace
 
 data Context =
   Context {
-    neededBlockHashes::[SHA],
+    contextSQLDB::SQLDB,
     pingCount::Int,
     peers::[Peer],
     miningDataset::B.ByteString,
-    useAlternateGenesisBlock::Bool,
-    vmTrace::[String], 
-    debugEnabled::Bool
+    vmTrace::[String]
     }
 
-type ContextM = StateT Context DBM
+type ContextM = StateT Context (ResourceT IO)
 
-isDebugEnabled::ContextM Bool
-isDebugEnabled = do
-  cxt <- get
-  return $ debugEnabled cxt 
+instance HasSQLDB ContextM where
+  getSQLDB = fmap contextSQLDB get
 
 {-
 initContext::String->IO Context
@@ -83,24 +56,6 @@ initContext theType = do
       False
 -}
 
-getStorageKeyVal'::Address->Word256->ContextM Word256
-getStorageKeyVal' owner key = do
-  addressState <- lift $ getAddressState owner
-  dbs <- lift get
-  let mpdb = (stateDB dbs){MPDB.stateRoot=addressStateContractRoot addressState}
-  maybeVal <- lift $ lift $ MPDB.getKeyVal mpdb (N.pack $ (N.byte2Nibbles =<<) $ word256ToBytes key)
-  case maybeVal of
-    Nothing -> return 0
-    Just x -> return $ fromInteger $ rlpDecode $ rlpDeserialize $ rlpDecode x
-
-getAllStorageKeyVals'::Address->ContextM [(MPDB.Key, Word256)]
-getAllStorageKeyVals' owner = do
-  addressState <- lift $ getAddressState owner
-  dbs <- lift get
-  let mpdb = (stateDB dbs){MPDB.stateRoot=addressStateContractRoot addressState}
-  kvs <- lift $ lift $ MPDB.unsafeGetAllKeyVals mpdb
-  return $ map (fmap $ fromInteger . rlpDecode . rlpDeserialize . rlpDecode) kvs
-
 getDebugMsg::ContextM String
 getDebugMsg = do
   cxt <- get
@@ -116,44 +71,26 @@ clearDebugMsg = do
   cxt <- get
   put cxt{vmTrace=[]}
 
-putStorageKeyVal'::Address->Word256->Word256->ContextM ()
-putStorageKeyVal' owner key val = do
-  lift $ hashDBPut storageKeyNibbles
-  addressState <- lift $ getAddressState owner
-  dbs <- lift get
-  let mpdb = (stateDB dbs){MPDB.stateRoot=addressStateContractRoot addressState}
-  newContractRoot <- fmap MPDB.stateRoot $ lift $ lift $ MPDB.putKeyVal mpdb storageKeyNibbles (rlpEncode $ rlpSerialize $ rlpEncode $ toInteger val)
-  lift $ putAddressState owner addressState{addressStateContractRoot=newContractRoot}
-  where storageKeyNibbles = N.pack $ (N.byte2Nibbles =<<) $ word256ToBytes key
+addNeededBlockHashes::[SHA]->ContextM ()
+addNeededBlockHashes blockHashes = do
+  db <- getSQLDB
+  flip SQL.runSqlPool db $
+    forM_ blockHashes $ \blockHash -> SQL.insert $ NeededBlockHash $ blockHash
 
-deleteStorageKey'::Address->Word256->ContextM ()
-deleteStorageKey' owner key = do
-  addressState <- lift $ getAddressState owner
-  dbs <- lift get
-  let mpdb = (stateDB dbs){MPDB.stateRoot=addressStateContractRoot addressState}
-  newContractRoot <- fmap MPDB.stateRoot $ lift $ lift $ MPDB.deleteKey mpdb (N.pack $ (N.byte2Nibbles =<<) $ word256ToBytes key)
-  lift $ putAddressState owner addressState{addressStateContractRoot=newContractRoot}
+clearNeededBlockHashes::ContextM ()
+clearNeededBlockHashes = do
+  db <- getSQLDB
+  flip SQL.runSqlPool db $
+    E.delete $ E.from $ \(_::E.SqlExpr (E.Entity NeededBlockHash)) -> return ()
 
-incrementNonce::Address->ContextM ()
-incrementNonce address = do
-  addressState <- lift $ getAddressState address
-  lift $ putAddressState address addressState{ addressStateNonce = addressStateNonce addressState + 1 }
+getHashCount::HasSQLDB m=>m Int
+getHashCount = do
+  res <- 
+    sqlQuery $
+      E.select $
+        E.from $ \(_::E.SqlExpr (E.Entity NeededBlockHash)) -> do
+          return E.countRows
 
-getNewAddress::Address->ContextM Address
-getNewAddress address = do
-  addressState <- lift $ getAddressState address
-  whenM isDebugEnabled $ liftIO $ putStrLn $ "Creating new account: owner=" ++ show (pretty address) ++ ", nonce=" ++ show (addressStateNonce addressState)
-  let newAddress = getNewAddress_unsafe address (addressStateNonce addressState)
-  incrementNonce address
-  return newAddress
-
-
-
-
-
-
-
-
-
-
-
+  case res of
+    [x] -> return $ E.unValue x
+    _ -> error "wrong format in response from SQL call in getHashCount"

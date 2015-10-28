@@ -17,14 +17,16 @@ import Blockchain.Data.Wire
 setTitle::String->IO()
 setTitle value = do
   putStr $ "\ESC]0;" ++ value ++ "\007"
-
+          
 updateStatus::ContextM ()
 updateStatus = do
   cxt <- get
+  count <- getHashCount
+  
   liftIO $ setTitle $
     "pingCount = " ++ show (pingCount cxt)
     ++ ", peer count=" ++ show (length $ peers cxt)
-    ++ ", hashes requested=" ++ show (length $ neededBlockHashes cxt)
+    ++ ", hashes requested=" ++ show count
 
 addPingCount::ContextM ()
 addPingCount = do

@@ -1,10 +1,11 @@
-{-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE OverloadedStrings, TemplateHaskell #-}
 
 module Main (
   main
   ) where
 
 import Control.Monad.IO.Class
+import Control.Monad.Logger
 import Control.Monad.State
 import Control.Monad.Trans.Resource
 import Crypto.PubKey.ECC.DH
@@ -12,17 +13,14 @@ import Crypto.Types.PubKey.ECC
 import Crypto.Random
 import qualified Data.ByteString as B
 import Data.Time.Clock
+import qualified Database.Persist.Postgresql as SQL
+import HFlags
 import qualified Network.Haskoin.Internals as H
-import Numeric
-import System.Entropy
-import System.Environment
-import System.IO.MMap
 
 import Blockchain.Frame
 import Blockchain.UDP hiding (Ping,Pong)
 import Blockchain.RLPx
 
-import Blockchain.Data.RLP
 import Blockchain.BlockChain
 import Blockchain.BlockSynchronizer
 import Blockchain.Communication
@@ -35,33 +33,48 @@ import Blockchain.Data.DataDefs
 import Blockchain.Data.Transaction
 import Blockchain.Data.Wire
 import Blockchain.Database.MerklePatricia
-import Blockchain.DB.CodeDB
-import Blockchain.DB.ModifyStateDB
-import Blockchain.DBM
+import Blockchain.DB.DetailsDB
+--import Blockchain.DB.ModifyStateDB
 import Blockchain.Display
 import Blockchain.PeerUrls
+import Blockchain.Options
 --import Blockchain.SampleTransactions
 import Blockchain.SHA
 --import Blockchain.SigningTools
-import Blockchain.Util
+--import Blockchain.Verifier
 import qualified Data.ByteString.Base16 as B16
 --import Debug.Trace
 
 import Data.Word
 import Data.Bits
 import Data.Maybe
-import Cache
+
+----
+
+import Data.Time.Clock.POSIX
+
+nextDifficulty::Integer->UTCTime->UTCTime->Integer
+nextDifficulty oldDifficulty oldTime newTime = max nextDiff' minimumDifficulty
+    where
+      nextDiff' = 
+          if round (utcTimeToPOSIXSeconds newTime) >=
+                 (round (utcTimeToPOSIXSeconds oldTime) + 8::Integer)
+          then oldDifficulty - oldDifficulty `shiftR` 11
+          else oldDifficulty + oldDifficulty `shiftR` 11
+
+----
 
 coinbasePrvKey::H.PrvKey
 Just coinbasePrvKey = H.makePrvKey 0xac3e8ce2ef31c3f45d5da860bcd9aee4b37a05c5a3ddee40dd061620c3dab380
 
+
 getNextBlock::Block->UTCTime->[Transaction]->ContextM Block
 getNextBlock b ts transactions = do
-  let theCoinbase = prvKey2Address coinbasePrvKey
-  lift $ setStateRoot $ blockDataStateRoot bd
-  addToBalance theCoinbase (1500*finney)
+  --let theCoinbase = prvKey2Address coinbasePrvKey
+  --setStateDBStateRoot $ blockDataStateRoot bd
+  --success <- addToBalance theCoinbase (1500*finney)
 
-  dbs <- lift get
+  --when (not success) $ error "coinbase overflow??  This should never happen."
 
   return Block{
                blockBlockData=testGetNextBlockData $ SHAPtr "", -- $ stateRoot $ stateDB dbs,
@@ -90,39 +103,40 @@ getNextBlock b ts transactions = do
         }
     bd = blockBlockData b
 
-
+{-
 submitNextBlock::Integer->Block->EthCryptM ContextM ()
 submitNextBlock baseDifficulty b = do
         ts <- liftIO getCurrentTime
         newBlock <- lift $ getNextBlock b ts []
-        n <- liftIO $ fastFindNonce newBlock
 
         --let theBytes = headerHashWithoutNonce newBlock `B.append` B.pack (integer2Bytes n)
-        let theNewBlock = addNonceToBlock newBlock n
+        let theNewBlock = newBlock -- addNonceToBlock newBlock n
         sendMsg $ NewBlockPacket theNewBlock (baseDifficulty + blockDataDifficulty (blockBlockData theNewBlock))
         lift $ addBlocks False [theNewBlock]
+-}
 
-submitNextBlockToDB::Integer->Block->[Transaction]->EthCryptM ContextM ()
-submitNextBlockToDB baseDifficulty b transactions = do
+submitNextBlockToDB::Block->[Transaction]->EthCryptM ContextM ()
+submitNextBlockToDB b transactions = do
   ts <- liftIO getCurrentTime
   newBlock <- lift $ getNextBlock b ts transactions
   --n <- liftIO $ fastFindNonce newBlock
 
-  let theNewBlock = addNonceToBlock newBlock (-1)
-  lift $ addBlocks True [theNewBlock]
+  let theNewBlock = newBlock{blockBlockData=(blockBlockData newBlock){blockDataNonce= -1}}
+  lift $ addBlocks [theNewBlock]
 
 submitNewBlock::Block->[Transaction]->EthCryptM ContextM ()
 submitNewBlock b transactions = do
   --lift $ addTransactions b (blockDataGasLimit $ blockBlockData b) transactions
-  submitNextBlockToDB 0 b transactions
+  submitNextBlockToDB b transactions
 
+{-
 ifBlockInDBSubmitNextBlock::Integer->Block->EthCryptM ContextM ()
 ifBlockInDBSubmitNextBlock baseDifficulty b = do
-  maybeBlock <- lift $ lift $ getBlock (blockHash b)
+  maybeBlock <- lift $ getBlock (blockHash b)
   case maybeBlock of
     Nothing -> return ()
     _ -> submitNextBlock baseDifficulty b
-
+-}
 
 
 handleMsg::Message->EthCryptM ContextM ()
@@ -134,7 +148,7 @@ handleMsg m = do
              genesisBlockHash <- lift getGenesisBlockHash
              sendMsg Status{
                protocolVersion=fromIntegral ethVersion,
-               networkID="",
+               networkID=if flags_testnet then 0 else 1,
                totalDifficulty=0,
                latestHash=blockHash bestBlock,
                genesisHash=genesisBlockHash
@@ -148,25 +162,31 @@ handleMsg m = do
     (Peers thePeers) -> do
       lift $ setPeers thePeers
     BlockHashes blockHashes -> handleNewBlockHashes blockHashes
-    GetBlocks blocks -> do
+    GetBlocks _ -> do
       sendMsg $ Blocks []
     Blocks blocks -> do
       handleNewBlocks blocks
-    NewBlockPacket block baseDifficulty -> do
+    --NewBlockPacket block baseDifficulty -> do
+    NewBlockPacket block _ -> do
       handleNewBlocks [block]
       --ifBlockInDBSubmitNextBlock baseDifficulty block
 
     Status{latestHash=lh, genesisHash=gh} -> do
       genesisBlockHash <- lift getGenesisBlockHash
       when (gh /= genesisBlockHash) $ error "Wrong genesis block hash!!!!!!!!"
-      handleNewBlockHashes [lh]
-    (GetTransactions transactions) -> do
+      lift removeLoadedHashes
+      previousLowestHash <- lift $ getLowestHashes 1
+      case previousLowestHash of
+        [] -> handleNewBlockHashes [lh]
+        [x] -> sendMsg $ GetBlockHashes [x] 0x500
+        _ -> error "unexpected multiple values in call to getLowetHashes 1"
+    GetTransactions _ -> do
       sendMsg $ Transactions []
       --liftIO $ sendMessage handle GetTransactions
       return ()
     (Transactions transactions) -> do
       bestBlock <-lift getBestBlock
-      submitNewBlock bestBlock transactions
+      when flags_wrapTransactions $ submitNewBlock bestBlock transactions
       
     _-> return ()
 
@@ -213,8 +233,8 @@ doit::EthCryptM ContextM ()
 doit = do
     liftIO $ putStrLn "Connected"
 
-    lift $ lift $ addCode B.empty --This is probably a bad place to do this, but I can't think of a more natural place to do it....  Empty code is used all over the place, and it needs to be in the database.
-    lift (lift . setStateRoot . blockDataStateRoot . blockBlockData =<< getBestBlock)
+    --lift $ addCode B.empty --This is probably a bad place to do this, but I can't think of a more natural place to do it....  Empty code is used all over the place, and it needs to be in the database.
+    --lift (setStateDBStateRoot . blockDataStateRoot . blockBlockData =<< getBestBlock)
 
   --signedTx <- createTransaction simpleTX
   --signedTx <- createTransaction outOfGasTX
@@ -244,23 +264,23 @@ theCurve = getCurveByName SEC_p256k1
 
 
 hPubKeyToPubKey::H.PubKey->Point
-hPubKeyToPubKey (H.PubKey hPoint) = Point (fromIntegral x) (fromIntegral y)
+hPubKeyToPubKey pubKey = Point (fromIntegral x) (fromIntegral y)
   where
     x = fromMaybe (error "getX failed in prvKey2Address") $ H.getX hPoint
     y = fromMaybe (error "getY failed in prvKey2Address") $ H.getY hPoint
-hPubKeyToPubKey (H.PubKeyU _) = error "PubKeyU not supported in hPubKeyToPUbKey yet"
+    hPoint = H.pubKeyPoint pubKey
 
 main::IO ()    
 main = do
-  args <- getArgs
+  args <- $initHFlags "The Ethereum Haskell Peer"
 
   let (ipAddress, thePort) =
         case args of
           [] -> ipAddresses !! 1 --default server
           [x] -> ipAddresses !! read x
           ["-a", address] -> (address, 30303)
-          [x, prt] -> (fst (ipAddresses !! read x), fromIntegral $ read prt)
-          ["-a", address, prt] -> (address, fromIntegral $ read prt)
+          [x, prt] -> (fst (ipAddresses !! read x), fromInteger $ read prt)
+          ["-a", address, prt] -> (address, fromInteger $ read prt)
           _ -> error "usage: ethereumH [servernum] [port]"
 
   putStrLn $ "Attempting to connect to " ++ show ipAddress ++ ":" ++ show thePort
@@ -276,10 +296,9 @@ main = do
   
 
 --  putStrLn $ "my UDP pubkey is: " ++ (show $ H.derivePubKey $ prvKey)
-  putStrLn $ "my NodeID is: " ++ (show $ B16.encode $ B.pack $ pointToBytes $ hPubKeyToPubKey $ H.derivePubKey $ H.PrvKey $ fromIntegral myPriv)
-    
-  otherPubKey@(Point x y) <- liftIO $ getServerPubKey (H.PrvKey $ fromIntegral myPriv) ipAddress thePort
+  putStrLn $ "my NodeID is: " ++ (show $ B16.encode $ B.pack $ pointToBytes $ hPubKeyToPubKey $ H.derivePubKey $ fromMaybe (error "invalid private number in main") $ H.makePrvKey $ fromIntegral myPriv)
 
+  otherPubKey <- getServerPubKey (fromMaybe (error "invalid private number in main") $ H.makePrvKey $ fromIntegral myPriv) ipAddress thePort
 
 --  putStrLn $ "server public key is : " ++ (show otherPubKey)
   putStrLn $ "server public key is : " ++ (show $ B16.encode $ B.pack $ pointToBytes otherPubKey)
@@ -289,9 +308,12 @@ main = do
   dataset <- return "" -- mmapFileByteString "dataset0" Nothing
 
   runResourceT $ do
-      cxt <- openDBs "h"
-      _ <- flip runStateT cxt $
-           flip runStateT (Context [] 0 [] dataset False [] False) $
+      pool <- runNoLoggingT $ SQL.createPostgresqlPool
+              "host=localhost dbname=eth user=postgres password=api port=5432" 20
+      
+      _ <- flip runStateT (Context
+                           pool
+                           0 [] dataset []) $
            runEthCryptM myPriv otherPubKey ipAddress (fromIntegral thePort) $ do
               
              sendMsg =<< liftIO (mkHello myPublic)
