@@ -17,7 +17,7 @@ source-repository this
   branch:   master
   tag:      v0.0.4
 
-executable ethereumH
+executable strato-p2p-client
     default-language: Haskell98
     build-depends: 
                    base >= 4 && < 5
