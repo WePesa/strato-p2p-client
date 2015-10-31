@@ -1,4 +1,4 @@
-name: ethereum-client-haskell
+name: strato-p2p-client
 version: 0.0.4
 cabal-version: >=1.10
 build-type: Simple
@@ -26,9 +26,9 @@ executable ethereumH
                  , crypto-pubkey
                  , crypto-pubkey-types
                  , crypto-random
-                 , ethereum-data-sql
+                 , blockapps-data
                  , ethereum-encryption
-                 , ethereum-merkle-patricia-db
+                 , merkle-patricia-db
                  , ethereum-util
                  , haskoin
                  , hflags
@@ -38,7 +38,7 @@ executable ethereumH
                  , resourcet
                  , time
                  , transformers
-                 , ethereum-client-haskell
+                 , strato-p2p-client
     main-is: Main.hs
     ghc-options: -Wall -O2
     buildable: True
@@ -54,7 +54,7 @@ library
                  , cryptohash
                  , crypto-pubkey-types
                  , esqueleto
-                 , ethereum-data-sql
+                 , blockapps-data
                  , ethereum-encryption
                  , ethereum-rlp
                  , ethereum-util
