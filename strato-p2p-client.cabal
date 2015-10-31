@@ -29,7 +29,7 @@ executable strato-p2p-client
                  , blockapps-data
                  , ethereum-encryption
                  , merkle-patricia-db
-                 , ethereum-util
+                 , blockapps-util
                  , haskoin
                  , hflags
                  , monad-logger
@@ -57,7 +57,7 @@ library
                  , blockapps-data
                  , ethereum-encryption
                  , ethereum-rlp
-                 , ethereum-util
+                 , blockapps-util
                  , hflags
 --                 , hminer
                  , mtl
