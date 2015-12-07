@@ -34,7 +34,9 @@ executable strato-p2p-client
                  , hflags
                  , monad-logger
                  , mtl
+                 , network
                  , persistent-postgresql
+                 , random
                  , resourcet
                  , time
                  , transformers

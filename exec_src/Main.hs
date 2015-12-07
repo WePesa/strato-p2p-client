@@ -15,7 +15,9 @@ import qualified Data.ByteString as B
 import Data.Time.Clock
 import qualified Database.Persist.Postgresql as SQL
 import HFlags
+import Network
 import qualified Network.Haskoin.Internals as H
+import System.Random
 
 import Blockchain.Frame
 import Blockchain.UDP hiding (Ping,Pong)
@@ -270,18 +272,14 @@ hPubKeyToPubKey pubKey = Point (fromIntegral x) (fromIntegral y)
     y = fromMaybe (error "getY failed in prvKey2Address") $ H.getY hPoint
     hPoint = H.pubKeyPoint pubKey
 
-main::IO ()    
-main = do
-  args <- $initHFlags "The Ethereum Haskell Peer"
+runPeer::[(String, PortNumber)]->Maybe Int->IO ()
+runPeer addresses maybePeerNumber = do
 
-  let (ipAddress, thePort) =
-        case args of
-          [] -> ipAddresses !! 1 --default server
-          [x] -> ipAddresses !! read x
-          ["-a", address] -> (address, 30303)
-          [x, prt] -> (fst (ipAddresses !! read x), fromInteger $ read prt)
-          ["-a", address, prt] -> (address, fromInteger $ read prt)
-          _ -> error "usage: ethereumH [servernum] [port]"
+  peerNumber <- case maybePeerNumber of
+                  Just x -> return x
+                  Nothing -> randomRIO (0, length addresses - 1)
+
+  let (ipAddress, thePort) = addresses !! peerNumber
 
   putStrLn $ "Attempting to connect to " ++ show ipAddress ++ ":" ++ show thePort
 
@@ -323,3 +321,15 @@ main = do
                          doit
                return ()
        Nothing -> putStrLn "Error, couldn't get public key for peer"
+
+main::IO ()    
+main = do
+  args <- $initHFlags "The Ethereum Haskell Peer"
+
+  let maybePeerNumber =
+        case args of
+          [] -> Nothing
+          [x] -> return $ read x
+          _ -> error "usage: ethereumH [servernum]"
+
+  runPeer ipAddresses maybePeerNumber
