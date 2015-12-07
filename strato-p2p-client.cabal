@@ -22,11 +22,11 @@ executable strato-p2p-client
     build-depends: 
                    base >= 4 && < 5
                  , base16-bytestring
+                 , blockapps-data
                  , bytestring
                  , crypto-pubkey
                  , crypto-pubkey-types
                  , crypto-random
-                 , blockapps-data
                  , ethereum-encryption
                  , merkle-patricia-db
                  , blockapps-util
@@ -38,9 +38,10 @@ executable strato-p2p-client
                  , persistent-postgresql
                  , random
                  , resourcet
+                 , strato-conf
+                 , strato-p2p-client
                  , time
                  , transformers
-                 , strato-p2p-client
     main-is: Main.hs
     ghc-options: -Wall -O2
     buildable: True
@@ -52,11 +53,11 @@ library
                    base >= 4 && < 5
                  , array
                  , binary
+                 , blockapps-data
                  , bytestring
                  , cryptohash
                  , crypto-pubkey-types
                  , esqueleto
-                 , blockapps-data
                  , ethereum-encryption
                  , ethereum-rlp
                  , blockapps-util
@@ -82,7 +83,6 @@ library
 --                   Blockchain.JCommand
 --                   Blockchain.Mining
                    Blockchain.Options
-                   Blockchain.PeerUrls
 --                   Blockchain.SampleTransactions
     ghc-options: -Wall -O2
     buildable: True
