@@ -332,4 +332,4 @@ main = do
           [x] -> return $ read x
           _ -> error "usage: ethereumH [servernum]"
 
-  runPeer ipAddresses maybePeerNumber
+  sequence_ $ repeat $ runPeer ipAddresses maybePeerNumber
