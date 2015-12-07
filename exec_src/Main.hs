@@ -298,26 +298,28 @@ main = do
 --  putStrLn $ "my UDP pubkey is: " ++ (show $ H.derivePubKey $ prvKey)
   putStrLn $ "my NodeID is: " ++ (show $ B16.encode $ B.pack $ pointToBytes $ hPubKeyToPubKey $ H.derivePubKey $ fromMaybe (error "invalid private number in main") $ H.makePrvKey $ fromIntegral myPriv)
 
-  otherPubKey <- getServerPubKey (fromMaybe (error "invalid private number in main") $ H.makePrvKey $ fromIntegral myPriv) ipAddress thePort
+  maybeOtherPubKey <- getServerPubKey (fromMaybe (error "invalid private number in main") $ H.makePrvKey $ fromIntegral myPriv) ipAddress thePort
 
---  putStrLn $ "server public key is : " ++ (show otherPubKey)
-  putStrLn $ "server public key is : " ++ (show $ B16.encode $ B.pack $ pointToBytes otherPubKey)
+  case maybeOtherPubKey of
+       Just otherPubKey -> do
+           --  putStrLn $ "server public key is : " ++ (show otherPubKey)
+    	   putStrLn $ "server public key is : " ++ (show $ B16.encode $ B.pack $ pointToBytes otherPubKey)
 
-  --cch <- mkCache 1024 "seed"
+           --cch <- mkCache 1024 "seed"
 
-  dataset <- return "" -- mmapFileByteString "dataset0" Nothing
+           dataset <- return "" -- mmapFileByteString "dataset0" Nothing
 
-  runResourceT $ do
-      pool <- runNoLoggingT $ SQL.createPostgresqlPool
-              "host=localhost dbname=eth user=postgres password=api port=5432" 20
+           runResourceT $ do
+               pool <- runNoLoggingT $ SQL.createPostgresqlPool
+                          "host=localhost dbname=eth user=postgres password=api port=5432" 20
       
-      _ <- flip runStateT (Context
+               _ <- flip runStateT (Context
                            pool
                            0 [] dataset []) $
-           runEthCryptM myPriv otherPubKey ipAddress (fromIntegral thePort) $ do
+                     runEthCryptM myPriv otherPubKey ipAddress (fromIntegral thePort) $ do
               
-             sendMsg =<< liftIO (mkHello myPublic)
+	                 sendMsg =<< liftIO (mkHello myPublic)
           
-             doit
-      return ()
-
+                         doit
+               return ()
+       Nothing -> putStrLn "Error, couldn't get public key for peer"
