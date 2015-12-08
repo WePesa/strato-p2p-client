@@ -296,10 +296,10 @@ runPeer addresses maybePeerNumber = do
 --  putStrLn $ "my UDP pubkey is: " ++ (show $ H.derivePubKey $ prvKey)
   putStrLn $ "my NodeID is: " ++ (show $ B16.encode $ B.pack $ pointToBytes $ hPubKeyToPubKey $ H.derivePubKey $ fromMaybe (error "invalid private number in main") $ H.makePrvKey $ fromIntegral myPriv)
 
-  maybeOtherPubKey <- getServerPubKey (fromMaybe (error "invalid private number in main") $ H.makePrvKey $ fromIntegral myPriv) ipAddress thePort
+  otherPubKey <- getServerPubKey (fromMaybe (error "invalid private number in main") $ H.makePrvKey $ fromIntegral myPriv) ipAddress thePort
 
-  case maybeOtherPubKey of
-       Just otherPubKey -> do
+  case otherPubKey of
+       Right otherPubKey -> do
            --  putStrLn $ "server public key is : " ++ (show otherPubKey)
     	   putStrLn $ "server public key is : " ++ (show $ B16.encode $ B.pack $ pointToBytes otherPubKey)
 
@@ -320,7 +320,7 @@ runPeer addresses maybePeerNumber = do
           
                          doit
                return ()
-       Nothing -> putStrLn "Error, couldn't get public key for peer"
+       Left e -> putStrLn $ "Error, couldn't get public key for peer: " ++ show e
 
 main::IO ()    
 main = do
