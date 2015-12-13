@@ -30,7 +30,6 @@ import Blockchain.Constants
 import Blockchain.Context
 import Blockchain.Data.Address
 import Blockchain.Data.BlockDB
-import Blockchain.Data.DataDefs
 --import Blockchain.Data.SignedTransaction
 import Blockchain.Data.Transaction
 import Blockchain.Data.Wire
@@ -296,12 +295,12 @@ runPeer addresses maybePeerNumber = do
 --  putStrLn $ "my UDP pubkey is: " ++ (show $ H.derivePubKey $ prvKey)
   putStrLn $ "my NodeID is: " ++ (show $ B16.encode $ B.pack $ pointToBytes $ hPubKeyToPubKey $ H.derivePubKey $ fromMaybe (error "invalid private number in main") $ H.makePrvKey $ fromIntegral myPriv)
 
-  otherPubKey <- getServerPubKey (fromMaybe (error "invalid private number in main") $ H.makePrvKey $ fromIntegral myPriv) ipAddress thePort
+  eitherOtherPubKey <- getServerPubKey (fromMaybe (error "invalid private number in main") $ H.makePrvKey $ fromIntegral myPriv) ipAddress thePort
 
-  case otherPubKey of
+  case eitherOtherPubKey of
        Right otherPubKey -> do
            --  putStrLn $ "server public key is : " ++ (show otherPubKey)
-    	   putStrLn $ "server public key is : " ++ (show $ B16.encode $ B.pack $ pointToBytes otherPubKey)
+           putStrLn $ "server public key is : " ++ (show $ B16.encode $ B.pack $ pointToBytes otherPubKey)
 
            --cch <- mkCache 1024 "seed"
 
@@ -315,8 +314,7 @@ runPeer addresses maybePeerNumber = do
                            pool
                            0 [] dataset []) $
                      runEthCryptM myPriv otherPubKey ipAddress (fromIntegral thePort) $ do
-              
-	                 sendMsg =<< liftIO (mkHello myPublic)
+                         sendMsg =<< liftIO (mkHello myPublic)
           
                          doit
                return ()
