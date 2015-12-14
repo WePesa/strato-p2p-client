@@ -51,7 +51,7 @@ library
     default-language: Haskell98
     build-depends: 
                    base >= 4 && < 5
-                 , array
+--                 , array
                  , binary
                  , blockapps-data
                  , bytestring
@@ -63,11 +63,13 @@ library
                  , blockapps-util
                  , hflags
 --                 , hminer
+                 , monad-logger
                  , mtl
                  , network
                  , persistent-postgresql
                  , resourcet
                  , safe
+                 , text
                  , time
                  , transformers
                  , ansi-wl-pprint
@@ -83,6 +85,7 @@ library
 --                   Blockchain.JCommand
 --                   Blockchain.Mining
                    Blockchain.Options
+                   Blockchain.PeerDB
 --                   Blockchain.SampleTransactions
     ghc-options: -Wall -O2
     buildable: True
