@@ -40,6 +40,7 @@ import Blockchain.Display
 import Blockchain.PeerUrls
 import Blockchain.Options
 --import Blockchain.SampleTransactions
+import Blockchain.PeerDB
 import Blockchain.SHA
 --import Blockchain.SigningTools
 --import Blockchain.Verifier
@@ -330,4 +331,5 @@ main = do
           [x] -> return $ read x
           _ -> error "usage: ethereumH [servernum]"
 
+  --sequence_ $ repeat $ runPeer ipAddressesDB maybePeerNumber
   sequence_ $ repeat $ runPeer ipAddresses maybePeerNumber
