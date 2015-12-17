@@ -61,7 +61,6 @@ data TerminationReason =
   | PingTimeout
   | OtherSubprotocolReason deriving (Show)
 
-
 numberToTerminationReason::Integer->TerminationReason
 numberToTerminationReason 0x00 = DisconnectRequested
 numberToTerminationReason 0x01 = TCPSubSystemError
@@ -75,8 +74,8 @@ numberToTerminationReason 0x08 = ClientQuitting
 numberToTerminationReason 0x09 = UnexpectedIdentity
 numberToTerminationReason 0x0a = ConnectedToSelf
 numberToTerminationReason 0x0b = PingTimeout
-numberToTerminationReason 0x0c = OtherSubprotocolReason
-numberToTerminationReason _ = error "numberToTerminationReasion called with unsupported number"
+numberToTerminationReason 0x10 = OtherSubprotocolReason
+numberToTerminationReason x = error $ "numberToTerminationReasion called with unsupported number: " ++ show x
 
 
 terminationReasonToNumber::TerminationReason->Integer
@@ -92,7 +91,7 @@ terminationReasonToNumber ClientQuitting = 0x08
 terminationReasonToNumber UnexpectedIdentity = 0x09
 terminationReasonToNumber ConnectedToSelf = 0x0a
 terminationReasonToNumber PingTimeout = 0x0b
-terminationReasonToNumber OtherSubprotocolReason = 0x0c
+terminationReasonToNumber OtherSubprotocolReason = 0x10
   
 
 
