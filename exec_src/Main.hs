@@ -141,7 +141,7 @@ ifBlockInDBSubmitNextBlock baseDifficulty b = do
 -}
 
 
-handleMsg::Message->EthCryptM ContextM ()
+handleMsg::Message->EthCryptM ContextM Bool
 handleMsg m = do
   lift $ displayMessage False m
   case m of
@@ -155,23 +155,32 @@ handleMsg m = do
                latestHash=blockHash bestBlock,
                genesisHash=genesisBlockHash
                }
+             return True
     Ping -> do
       lift addPingCount
       sendMsg Pong
+      return True
     GetPeers -> do
       sendMsg $ Peers []
       sendMsg GetPeers
-    (Peers thePeers) -> do
+      return True
+    Peers thePeers -> do
       lift $ setPeers thePeers
-    BlockHashes blockHashes -> handleNewBlockHashes blockHashes
+      return True
+    BlockHashes blockHashes -> do
+      handleNewBlockHashes blockHashes
+      return True
     GetBlocks _ -> do
       sendMsg $ Blocks []
+      return True
     Blocks blocks -> do
       handleNewBlocks blocks
+      return True
     --NewBlockPacket block baseDifficulty -> do
     NewBlockPacket block _ -> do
       handleNewBlocks [block]
       --ifBlockInDBSubmitNextBlock baseDifficulty block
+      return True
 
     Status{latestHash=lh, genesisHash=gh} -> do
       genesisBlockHash <- lift getGenesisBlockHash
@@ -182,21 +191,26 @@ handleMsg m = do
         [] -> handleNewBlockHashes [lh]
         [x] -> sendMsg $ GetBlockHashes [x] 0x500
         _ -> error "unexpected multiple values in call to getLowetHashes 1"
+      return True
     GetTransactions _ -> do
       sendMsg $ Transactions []
       --liftIO $ sendMessage handle GetTransactions
-      return ()
-    (Transactions transactions) -> do
+      return True
+    Transactions transactions -> do
       bestBlock <-lift getBestBlock
       when flags_wrapTransactions $ submitNewBlock bestBlock transactions
-      
-    _-> return ()
+      return True
+    Disconnect _ -> return False
+           
+    _-> return True
 
 readAndOutput::EthCryptM ContextM ()
 readAndOutput = do
   msg <- recvMsg
-  handleMsg msg
-  readAndOutput
+  stayConnected <- handleMsg msg
+  if stayConnected
+     then readAndOutput
+     else return ()
   
 mkHello::Point->IO Message
 mkHello peerId = do
