@@ -331,5 +331,6 @@ main = do
           [x] -> return $ read x
           _ -> error "usage: ethereumH [servernum]"
 
-  --sequence_ $ repeat $ runPeer ipAddressesDB maybePeerNumber
-  sequence_ $ repeat $ runPeer ipAddresses maybePeerNumber
+  if flags_sqlPeers
+    then sequence_ $ repeat $ runPeer ipAddressesDB maybePeerNumber
+    else sequence_ $ repeat $ runPeer ipAddresses maybePeerNumber
