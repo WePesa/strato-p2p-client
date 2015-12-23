@@ -24,10 +24,13 @@ executable strato-p2p-client
                  , base16-bytestring
                  , blockapps-data
                  , bytestring
+                 , conduit
+                 , conduit-extra
                  , crypto-pubkey
                  , crypto-pubkey-types
                  , crypto-random
                  , ethereum-encryption
+                 , ethereum-rlp
                  , merkle-patricia-db
                  , blockapps-util
                  , haskoin
@@ -55,6 +58,7 @@ library
                  , binary
                  , blockapps-data
                  , bytestring
+                 , conduit
                  , cryptohash
                  , crypto-pubkey-types
                  , esqueleto
@@ -76,7 +80,7 @@ library
     exposed-modules: 
                    Blockchain.BlockChain
                    Blockchain.BlockSynchronizer
-                   Blockchain.Communication
+--                   Blockchain.Communication
                    Blockchain.Context
                    Blockchain.Data.Peer
 --                   Blockchain.Data.TransactionReceipt

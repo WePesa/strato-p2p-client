@@ -12,6 +12,12 @@ import Crypto.PubKey.ECC.DH
 import Crypto.Types.PubKey.ECC
 import Crypto.Random
 import qualified Data.ByteString as B
+import qualified Data.ByteString.Char8 as BC
+import qualified Data.ByteString.Lazy as BL
+import Data.Conduit
+import qualified Data.Conduit.Binary as CB
+import qualified Data.Conduit.List as CL
+import Data.Conduit.Network
 import Data.Time.Clock
 import qualified Database.Persist.Postgresql as SQL
 import HFlags
@@ -25,11 +31,12 @@ import Blockchain.RLPx
 
 import Blockchain.BlockChain
 import Blockchain.BlockSynchronizer
-import Blockchain.Communication
+--import Blockchain.Communication
 import Blockchain.Constants
 import Blockchain.Context
 import Blockchain.Data.Address
 import Blockchain.Data.BlockDB
+import Blockchain.Data.RLP
 --import Blockchain.Data.SignedTransaction
 import Blockchain.Data.Transaction
 import Blockchain.Data.Wire
@@ -37,6 +44,7 @@ import Blockchain.Database.MerklePatricia
 import Blockchain.DB.DetailsDB
 --import Blockchain.DB.ModifyStateDB
 import Blockchain.Display
+import Blockchain.Format
 import Blockchain.PeerUrls
 import Blockchain.Options
 --import Blockchain.SampleTransactions
@@ -44,6 +52,7 @@ import Blockchain.PeerDB
 import Blockchain.SHA
 --import Blockchain.SigningTools
 --import Blockchain.Verifier
+import Blockchain.Util
 import qualified Data.ByteString.Base16 as B16
 --import Debug.Trace
 
@@ -117,7 +126,7 @@ submitNextBlock baseDifficulty b = do
         lift $ addBlocks False [theNewBlock]
 -}
 
-submitNextBlockToDB::Block->[Transaction]->EthCryptM ContextM ()
+submitNextBlockToDB::Block->[Transaction]->Conduit Message ContextM Message
 submitNextBlockToDB b transactions = do
   ts <- liftIO getCurrentTime
   newBlock <- lift $ getNextBlock b ts transactions
@@ -126,7 +135,7 @@ submitNextBlockToDB b transactions = do
   let theNewBlock = newBlock{blockBlockData=(blockBlockData newBlock){blockDataNonce= -1}}
   lift $ addBlocks [theNewBlock]
 
-submitNewBlock::Block->[Transaction]->EthCryptM ContextM ()
+submitNewBlock::Block->[Transaction]->Conduit Message ContextM Message
 submitNewBlock b transactions = do
   --lift $ addTransactions b (blockDataGasLimit $ blockBlockData b) transactions
   submitNextBlockToDB b transactions
@@ -141,90 +150,65 @@ ifBlockInDBSubmitNextBlock baseDifficulty b = do
 -}
 
 
-handleMsg::Message->EthCryptM ContextM Bool
-handleMsg m = do
-  lift $ displayMessage False m
-  case m of
-    Hello{} -> do
-             bestBlock <- lift getBestBlock
-             genesisBlockHash <- lift getGenesisBlockHash
-             sendMsg Status{
-               protocolVersion=fromIntegral ethVersion,
-               networkID=if flags_testnet then 0 else 1,
-               totalDifficulty=0,
-               latestHash=blockHash bestBlock,
-               genesisHash=genesisBlockHash
-               }
-             return True
-    Ping -> do
-      lift addPingCount
-      sendMsg Pong
-      return True
-    GetPeers -> do
-      sendMsg $ Peers []
-      sendMsg GetPeers
-      return True
-    Peers thePeers -> do
-      lift $ setPeers thePeers
-      return True
-    BlockHashes blockHashes -> do
-      handleNewBlockHashes blockHashes
-      return True
-    GetBlocks _ -> do
-      sendMsg $ Blocks []
-      return True
-    Blocks blocks -> do
-      handleNewBlocks blocks
-      return True
-    --NewBlockPacket block baseDifficulty -> do
-    NewBlockPacket block _ -> do
-      handleNewBlocks [block]
-      --ifBlockInDBSubmitNextBlock baseDifficulty block
-      return True
+handleMsg::Point->Conduit Message ContextM Message
+handleMsg peerId = do
+  yield $ Hello {
+              version = 4,
+              clientId = "Ethereum(G)/v0.6.4//linux/Haskell",
+              capability = [ETH ethVersion], -- , SHH shhVersion],
+              port = 0,
+              nodeId = peerId
+            }
 
-    Status{latestHash=lh, genesisHash=gh} -> do
-      genesisBlockHash <- lift getGenesisBlockHash
-      when (gh /= genesisBlockHash) $ error "Wrong genesis block hash!!!!!!!!"
-      lift removeLoadedHashes
-      previousLowestHash <- lift $ getLowestHashes 1
-      case previousLowestHash of
-        [] -> handleNewBlockHashes [lh]
-        [x] -> sendMsg $ GetBlockHashes [x] 0x500
-        _ -> error "unexpected multiple values in call to getLowetHashes 1"
-      return True
-    GetTransactions _ -> do
-      sendMsg $ Transactions []
-      --liftIO $ sendMessage handle GetTransactions
-      return True
-    Transactions transactions -> do
-      bestBlock <-lift getBestBlock
-      when flags_wrapTransactions $ submitNewBlock bestBlock transactions
-      return True
-    Disconnect _ -> return False
+  awaitForever $ \msg ->
+    case msg of
+        Hello{} -> do
+               bestBlock <- lift getBestBlock
+               genesisBlockHash <- lift getGenesisBlockHash
+               yield Status{
+                           protocolVersion=fromIntegral ethVersion,
+                           networkID=if flags_testnet then 0 else 1,
+                           totalDifficulty=0,
+                           latestHash=blockHash bestBlock,
+                           genesisHash=genesisBlockHash
+                         }
+        Ping -> do
+               lift addPingCount
+               yield Pong
+        GetPeers -> do
+               yield $ Peers []
+               yield GetPeers
+        Peers thePeers -> do
+               lift $ setPeers thePeers
+        BlockHashes blockHashes -> do
+               handleNewBlockHashes blockHashes
+        GetBlocks _ -> do
+               yield $ Blocks []
+        Blocks blocks -> do
+               handleNewBlocks blocks
+               --NewBlockPacket block baseDifficulty -> do
+        NewBlockPacket block _ -> do
+               handleNewBlocks [block]
+               --ifBlockInDBSubmitNextBlock baseDifficulty block
+
+        Status{latestHash=lh, genesisHash=gh} -> do
+               genesisBlockHash <- lift getGenesisBlockHash
+               when (gh /= genesisBlockHash) $ error "Wrong genesis block hash!!!!!!!!"
+               lift removeLoadedHashes
+               previousLowestHash <- lift $ getLowestHashes 1
+               case previousLowestHash of
+                 [] -> handleNewBlockHashes [lh]
+                 [x] -> yield $ GetBlockHashes [x] 0x500
+                 _ -> error "unexpected multiple values in call to getLowetHashes 1"
+        GetTransactions _ -> do
+               yield $ Transactions []
+               --liftIO $ sendMessage handle GetTransactions
+        Transactions transactions -> do
+               bestBlock <-lift getBestBlock
+               when flags_wrapTransactions $ submitNewBlock bestBlock transactions
            
-    _-> return True
+        _-> return ()
 
-readAndOutput::EthCryptM ContextM ()
-readAndOutput = do
-  msg <- recvMsg
-  stayConnected <- handleMsg msg
-  if stayConnected
-     then readAndOutput
-     else return ()
-  
-mkHello::Point->IO Message
-mkHello peerId = do
-  --let peerId = B.replicate 64 0xFF -- getEntropy 64
-  let hello = Hello {
-               version = 4,
-               clientId = "Ethereum(G)/v0.6.4//linux/Haskell",
-               capability = [ETH ethVersion], -- , SHH shhVersion],
-               port = 0,
-               nodeId = peerId
-             }
---  putStrLn $ show $ wireMessage2Obj hello
---  putStrLn $ show $ rlpSerialize $ snd (wireMessage2Obj hello)
-  return hello
 {-
 createTransaction::Transaction->ContextM SignedTransaction
 createTransaction t = do
@@ -245,8 +229,8 @@ pointToBytes::Point->[Word8]
 pointToBytes (Point x y) = intToBytes x ++ intToBytes y
 pointToBytes PointO = error "pointToBytes got value PointO, I don't know what to do here"
 
-doit::EthCryptM ContextM ()
-doit = do
+doit::Point->ContextM ()
+doit myPublic = do
     liftIO $ putStrLn "Connected"
 
     --lift $ addCode B.empty --This is probably a bad place to do this, but I can't think of a more natural place to do it....  Empty code is used all over the place, and it needs to be in the database.
@@ -272,12 +256,48 @@ doit = do
   --signedTxs <- createTransactions [createMysteryContract]
   --liftIO $ sendMessage socket $ Transactions signedTxs
 
+--cbSafeTake::Monad m=>Int->Consumer B.ByteString m B.ByteString
+cbSafeTake i = do
+    ret <- fmap BL.toStrict $ CB.take i
+    if B.length ret /= i
+       then error "safeTake: not enough data"
+       else return ret
+           
+getRLPData::Monad m=>Consumer B.ByteString m B.ByteString
+getRLPData = do
+  first <- fmap (fromMaybe $ error "no rlp data") CB.head
+  case first of
+    x | x < 128 -> return $ B.singleton x
+    x | x >= 192 && x <= 192+55 -> do
+               rest <- cbSafeTake $ fromIntegral $ x - 192
+               return $ x `B.cons` rest
+    x | x >= 0xF8 && x <= 0xFF -> do
+               length <- cbSafeTake $ fromIntegral x-0xF7
+               rest <- cbSafeTake $ fromIntegral $ bytes2Integer $ B.unpack length
+               return $ x `B.cons` length `B.append` rest
+    x -> error $ "missing case in getRLPData: " ++ show x 
 
-    readAndOutput
+bytesToMessages::Conduit B.ByteString ContextM Message
+bytesToMessages = do
+  msgTypeData <- cbSafeTake 1
+  let word = fromInteger (rlpDecode $ rlpDeserialize msgTypeData::Integer)
 
+  objBytes <- getRLPData
+  yield $ obj2WireMessage (if word == 128 then 0 else word) $ rlpDeserialize objBytes
+  bytesToMessages
+          
+messagesToBytes::Conduit Message ContextM B.ByteString
+messagesToBytes = do
+  maybeMsg <- await
+  case maybeMsg of
+    Nothing -> return ()
+    Just msg -> do
+        let (theWord, o) = wireMessage2Obj msg
+        yield $ theWord `B.cons` rlpSerialize o
+        messagesToBytes
+             
 theCurve::Curve
 theCurve = getCurveByName SEC_p256k1
-
 
 hPubKeyToPubKey::H.PubKey->Point
 hPubKeyToPubKey pubKey = Point (fromIntegral x) (fromIntegral y)
@@ -286,6 +306,22 @@ hPubKeyToPubKey pubKey = Point (fromIntegral x) (fromIntegral y)
     y = fromMaybe (error "getY failed in prvKey2Address") $ H.getY hPoint
     hPoint = H.pubKeyPoint pubKey
 
+--formatMsg::MonadIO m=>Conduit Message m Message
+formatMsg = tap (displayMessage True)
+
+--This must exist somewhere already
+tap::MonadIO m=>(a->m ())->Conduit a m a
+tap f = do
+  awaitForever $ \x -> do
+      lift $ f x
+      yield x
+        
+connectAndRun::PrivateNumber->Point->PublicPoint->Conduit B.ByteString ContextM B.ByteString
+connectAndRun myPriv myPublic otherPubKey = do
+  (outCxt, inCxt) <- ethCryptConnect myPriv otherPubKey
+  ethDecrypt inCxt $= bytesToMessages $= tap (displayMessage False) $= handleMsg myPublic =$ tap (displayMessage True) =$ messagesToBytes =$ ethEncrypt outCxt
+
+  
 runPeer::[(String, PortNumber)]->Maybe Int->IO ()
 runPeer addresses maybePeerNumber = do
 
@@ -321,18 +357,20 @@ runPeer addresses maybePeerNumber = do
 
            dataset <- return "" -- mmapFileByteString "dataset0" Nothing
 
-           runResourceT $ do
-               pool <- runNoLoggingT $ SQL.createPostgresqlPool
-                          "host=localhost dbname=eth user=postgres password=api port=5432" 20
+           runTCPClient (clientSettings (fromIntegral thePort) $ BC.pack ipAddress) $ \server -> 
+
+               runResourceT $ do
+                              pool <- runNoLoggingT $ SQL.createPostgresqlPool
+                                      "host=localhost dbname=eth user=postgres password=api port=5432" 20
       
-               _ <- flip runStateT (Context
-                           pool
-                           0 [] dataset []) $
-                     runEthCryptM myPriv otherPubKey ipAddress (fromIntegral thePort) $ do
-                         sendMsg =<< liftIO (mkHello myPublic)
-          
-                         doit
-               return ()
+                              _ <- flip runStateT (Context
+                                                   pool
+                                                   0 [] dataset []) $ do
+                                       transPipe liftIO (appSource server) $= connectAndRun myPriv myPublic otherPubKey $$ transPipe liftIO (appSink server)
+
+
+                              return ()
+                                  
        Left e -> putStrLn $ "Error, couldn't get public key for peer: " ++ show e
 
 main::IO ()    

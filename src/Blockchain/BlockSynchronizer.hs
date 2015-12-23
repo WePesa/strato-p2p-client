@@ -8,6 +8,7 @@ module Blockchain.BlockSynchronizer (
 import Control.Monad.IO.Class
 import Control.Monad.State
 import Control.Monad.Trans.Resource
+import Data.Conduit
 import Data.Function
 import Data.List
 import qualified Database.Esqueleto as E
@@ -16,7 +17,7 @@ import Safe
 
 import Blockchain.BlockChain
 import qualified Blockchain.Colors as CL
-import Blockchain.Communication
+--import Blockchain.Communication
 import Blockchain.Context
 import Blockchain.Data.BlockDB
 import Blockchain.Data.DataDefs
@@ -84,7 +85,7 @@ findFirstHashAlreadyInDB::[SHA]->ContextM (Maybe SHA)
 findFirstHashAlreadyInDB hashes =
   fmap headMay $ filterM getBlockExists hashes
 
-handleNewBlockHashes::[SHA]->EthCryptM ContextM ()
+handleNewBlockHashes::[SHA]->Conduit Message ContextM Message
 --handleNewBlockHashes _ list | trace ("########### handleNewBlockHashes: " ++ show list) $ False = undefined
 handleNewBlockHashes [] = do
   --this really shouldn't happen, but the go client was doing it
@@ -102,21 +103,21 @@ handleNewBlockHashes blockHashes = do
     Nothing -> do
                 --liftIO $ putStrLn "Requesting more block hashes"
                 lift $ addNeededBlockHashes blockHashes
-                sendMsg $ GetBlockHashes [last blockHashes] 0x500
+                yield $ GetBlockHashes [last blockHashes] 0x500
     Just hashInDB -> do
                 liftIO $ putStrLn $ "Found a serverblock already in our database: " ++ format hashInDB
                 lift $ addNeededBlockHashes $ takeWhile (/= hashInDB) blockHashes
                 askForSomeBlocks
   
-askForSomeBlocks::EthCryptM ContextM ()
+askForSomeBlocks::Conduit Message ContextM Message
 askForSomeBlocks = do
   lift $ removeLoadedHashes
   neededHashes <- lift $ getLowestHashes 128
   when (length neededHashes > 0) $
-    sendMsg $ GetBlocks neededHashes
+    yield $ GetBlocks neededHashes
 
 
-handleNewBlocks::[Block]->EthCryptM ContextM ()
+handleNewBlocks::[Block]->Conduit Message ContextM Message
 handleNewBlocks [] = error "handleNewBlocks called with empty block list"
 handleNewBlocks blocks = do
   let orderedBlocks =
