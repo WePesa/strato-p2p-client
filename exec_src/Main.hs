@@ -110,7 +110,7 @@ getNextBlock b ts transactions = do
         blockDataTimestamp = ts,  
         blockDataExtraData = 0,
         blockDataMixHash = SHA 0,
-        blockDataNonce = 5
+        blockDataNonce = Nothing
         }
     bd = blockBlockData b
 
@@ -132,7 +132,7 @@ submitNextBlockToDB b transactions = do
   newBlock <- lift $ getNextBlock b ts transactions
   --n <- liftIO $ fastFindNonce newBlock
 
-  let theNewBlock = newBlock{blockBlockData=(blockBlockData newBlock){blockDataNonce= -1}}
+  let theNewBlock = newBlock{blockBlockData=(blockBlockData newBlock){blockDataNonce= Nothing}}
   lift $ addBlocks [theNewBlock]
 
 submitNewBlock::Block->[Transaction]->Conduit Message ContextM Message
