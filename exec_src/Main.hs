@@ -24,6 +24,7 @@ import HFlags
 import Network
 import qualified Network.Haskoin.Internals as H
 import System.Random
+import System.IO
 
 import Blockchain.Frame
 import Blockchain.UDP hiding (Ping,Pong)
@@ -375,6 +376,9 @@ runPeer addresses maybePeerNumber = do
 
 main::IO ()    
 main = do
+  hSetBuffering stdout NoBuffering
+  hSetBuffering stderr NoBuffering
+
   args <- $initHFlags "The Ethereum Haskell Peer"
 
   let maybePeerNumber =
