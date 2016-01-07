@@ -40,8 +40,8 @@ capValue ETH = "eth"
 capValue SHH = "shh"-}
 
 instance RLPSerializable Capability where
-    rlpEncode (ETH qqqq) = RLPArray [rlpEncode "eth", rlpEncode qqqq]
-    rlpEncode (SHH qqqq) = RLPArray [rlpEncode "shh", rlpEncode qqqq]
+    rlpEncode (ETH qqqq) = RLPArray [rlpEncode ("eth"::B.ByteString), rlpEncode qqqq]
+    rlpEncode (SHH qqqq) = RLPArray [rlpEncode ("shh"::B.ByteString), rlpEncode qqqq]
 
     rlpDecode (RLPArray [name, qqqq]) = name2Cap (rlpDecode qqqq) $ rlpDecode name
     rlpDecode x = error $ "wrong format given to rlpDecode for Capability: " ++ show (pretty x)
