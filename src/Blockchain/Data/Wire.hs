@@ -1,4 +1,4 @@
-
+{-# LANGUAGE OverloadedStrings #-}
 --TODO : Take this next line out
 {-# OPTIONS_GHC -fno-warn-orphans #-}
 
