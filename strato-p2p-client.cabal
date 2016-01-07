@@ -78,7 +78,7 @@ library
                  , transformers
                  , ansi-wl-pprint
     exposed-modules: 
-                   Blockchain.BlockChain
+--                   Blockchain.BlockChain
                    Blockchain.BlockSynchronizer
 --                   Blockchain.Communication
                    Blockchain.Context

@@ -1,4 +1,5 @@
 module Blockchain.BlockSynchronizer (
+                          addBlocks,
                           handleNewBlockHashes,
                           handleNewBlocks,
                           removeLoadedHashes,
@@ -15,7 +16,10 @@ import qualified Database.Esqueleto as E
 import GHC.Int
 import Safe
 
-import Blockchain.BlockChain
+import Data.Time.Clock.POSIX
+import Text.Printf
+
+    
 import qualified Blockchain.Colors as CL
 --import Blockchain.Communication
 import Blockchain.Context
@@ -49,6 +53,24 @@ debug_blockDBGet hash' = do
         then return Nothing
         else return maybeBlockBytes
 -}
+
+
+
+
+
+
+-- {-# LANGUAGE OverloadedStrings, FlexibleContexts #-}
+
+                
+addBlocks::[Block]->ContextM ()
+addBlocks blocks = do
+  before <- liftIO $ getPOSIXTime
+
+  _ <- putBlocks blocks
+
+  after <- liftIO $ getPOSIXTime
+
+  liftIO $ putStrLn $ "#### Added " ++ show (length blocks) ++ " blocks, insertion time = " ++ printf "%.4f" (realToFrac $ after - before::Double) ++ "s"
 
 getBlockExists :: (MonadResource m, HasSQLDB m)=>SHA->m Bool
 getBlockExists h = do

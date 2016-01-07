@@ -30,7 +30,6 @@ import Blockchain.Frame
 import Blockchain.UDP hiding (Ping,Pong)
 import Blockchain.RLPx
 
-import Blockchain.BlockChain
 import Blockchain.BlockSynchronizer
 --import Blockchain.Communication
 import Blockchain.Constants

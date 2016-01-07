@@ -1,7 +1,7 @@
 {-# LANGUAGE OverloadedStrings, FlexibleContexts #-}
 
 module Blockchain.BlockChain (
-  addBlocks
+--  addBlocks
   ) where
 
 import Control.Monad.IO.Class
