@@ -28,7 +28,6 @@ import Blockchain.Data.DataDefs
 import Blockchain.Data.Wire
 import Blockchain.DB.SQLDB
 import Blockchain.Format
-import Blockchain.Frame
 import Blockchain.SHA
 
 --import Debug.Trace

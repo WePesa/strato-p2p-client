@@ -4,7 +4,6 @@
 module Blockchain.PeerDB where
 
 import Control.Monad
-import qualified Data.ByteString as B
 import qualified Data.Text as T
 import Network
 import System.IO.Unsafe
