@@ -196,7 +196,7 @@ handleMsg peerId = do
                previousLowestHash <- lift $ getLowestHashes 1
                case previousLowestHash of
                  [] -> handleNewBlockHashes [lh]
-                 [x] -> yield $ GetBlockHashes [x] 0x500
+                 [x] -> yield $ GetBlockHashes x 0x500
                  _ -> error "unexpected multiple values in call to getLowetHashes 1"
         GetTransactions _ -> do
                yield $ Transactions []

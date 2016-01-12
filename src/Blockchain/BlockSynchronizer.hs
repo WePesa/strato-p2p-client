@@ -124,7 +124,7 @@ handleNewBlockHashes blockHashes = do
     Nothing -> do
                 --liftIO $ putStrLn "Requesting more block hashes"
                 lift $ addNeededBlockHashes blockHashes
-                yield $ GetBlockHashes [last blockHashes] 0x500
+                yield $ GetBlockHashes (last blockHashes) 0x500
     Just hashInDB -> do
                 liftIO $ putStrLn $ "Found a serverblock already in our database: " ++ format hashInDB
                 lift $ addNeededBlockHashes $ takeWhile (/= hashInDB) blockHashes
