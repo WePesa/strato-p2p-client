@@ -16,7 +16,6 @@ import qualified Data.ByteString.Char8 as BC
 import qualified Data.ByteString.Lazy as BL
 import Data.Conduit
 import qualified Data.Conduit.Binary as CB
-import qualified Data.Conduit.List as CL
 import Data.Conduit.Network
 import Data.Time.Clock
 import qualified Database.Persist.Postgresql as SQL
@@ -44,7 +43,6 @@ import Blockchain.Database.MerklePatricia
 import Blockchain.DB.DetailsDB
 --import Blockchain.DB.ModifyStateDB
 import Blockchain.Display
-import Blockchain.Format
 import Blockchain.PeerUrls
 import Blockchain.Options
 --import Blockchain.SampleTransactions
@@ -229,6 +227,7 @@ pointToBytes::Point->[Word8]
 pointToBytes (Point x y) = intToBytes x ++ intToBytes y
 pointToBytes PointO = error "pointToBytes got value PointO, I don't know what to do here"
 
+{-
 doit::Point->ContextM ()
 doit myPublic = do
     liftIO $ putStrLn "Connected"
@@ -255,8 +254,11 @@ doit myPublic = do
 
   --signedTxs <- createTransactions [createMysteryContract]
   --liftIO $ sendMessage socket $ Transactions signedTxs
+-}
+
 
 --cbSafeTake::Monad m=>Int->Consumer B.ByteString m B.ByteString
+cbSafeTake::Monad m=>Int->ConduitM BC.ByteString o m BC.ByteString
 cbSafeTake i = do
     ret <- fmap BL.toStrict $ CB.take i
     if B.length ret /= i
@@ -272,9 +274,9 @@ getRLPData = do
                rest <- cbSafeTake $ fromIntegral $ x - 192
                return $ x `B.cons` rest
     x | x >= 0xF8 && x <= 0xFF -> do
-               length <- cbSafeTake $ fromIntegral x-0xF7
-               rest <- cbSafeTake $ fromIntegral $ bytes2Integer $ B.unpack length
-               return $ x `B.cons` length `B.append` rest
+               length' <- cbSafeTake $ fromIntegral x-0xF7
+               rest <- cbSafeTake $ fromIntegral $ bytes2Integer $ B.unpack length'
+               return $ x `B.cons` length' `B.append` rest
     x -> error $ "missing case in getRLPData: " ++ show x 
 
 bytesToMessages::Conduit B.ByteString ContextM Message
@@ -305,9 +307,6 @@ hPubKeyToPubKey pubKey = Point (fromIntegral x) (fromIntegral y)
     x = fromMaybe (error "getX failed in prvKey2Address") $ H.getX hPoint
     y = fromMaybe (error "getY failed in prvKey2Address") $ H.getY hPoint
     hPoint = H.pubKeyPoint pubKey
-
---formatMsg::MonadIO m=>Conduit Message m Message
-formatMsg = tap (displayMessage True)
 
 --This must exist somewhere already
 tap::MonadIO m=>(a->m ())->Conduit a m a
