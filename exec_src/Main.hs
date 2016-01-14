@@ -58,20 +58,7 @@ import Data.Word
 import Data.Bits
 import Data.Maybe
 
-----
-
 import Data.Time.Clock.POSIX
-
-nextDifficulty::Integer->UTCTime->UTCTime->Integer
-nextDifficulty oldDifficulty oldTime newTime = max nextDiff' minimumDifficulty
-    where
-      nextDiff' = 
-          if round (utcTimeToPOSIXSeconds newTime) >=
-                 (round (utcTimeToPOSIXSeconds oldTime) + 8::Integer)
-          then oldDifficulty - oldDifficulty `shiftR` 11
-          else oldDifficulty + oldDifficulty `shiftR` 11
-
-----
 
 coinbasePrvKey::H.PrvKey
 Just coinbasePrvKey = H.makePrvKey 0xac3e8ce2ef31c3f45d5da860bcd9aee4b37a05c5a3ddee40dd061620c3dab380
@@ -101,7 +88,7 @@ getNextBlock b ts transactions = do
         blockDataTransactionsRoot = emptyTriePtr,
         blockDataReceiptsRoot = emptyTriePtr,
         blockDataLogBloom = B.pack [0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],         
-        blockDataDifficulty = nextDifficulty (blockDataDifficulty bd) (blockDataTimestamp bd) ts,
+        blockDataDifficulty = nextDifficulty flags_testnet (blockDataNumber bd) (blockDataDifficulty bd) (blockDataTimestamp bd) ts,
         blockDataNumber = blockDataNumber bd + 1,
         blockDataGasLimit = blockDataGasLimit bd, -- max 125000 ((blockDataGasLimit bd * 1023 + blockDataGasUsed bd *6 `quot` 5) `quot` 1024),
         blockDataGasUsed = 0,
