@@ -17,7 +17,7 @@ addBlocks::[Block]->ContextM ()
 addBlocks blocks = do
   before <- liftIO $ getPOSIXTime 
 
-  _ <- putBlocks blocks
+  _ <- putBlocks blocks False
 
   after <- liftIO $ getPOSIXTime 
 
