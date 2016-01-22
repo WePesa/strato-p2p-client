@@ -152,7 +152,9 @@ handleMsg peerId = do
                genesisBlockHash <- lift getGenesisBlockHash
                yield Status{
                            protocolVersion=fromIntegral ethVersion,
-                           networkID=if flags_testnet then 0 else 1,
+                           networkID=if flags_networkID == -1
+			               then (if flags_testnet then 0 else 1) 
+                                       else flags_networkID,
                            totalDifficulty=0,
                            latestHash=blockHash bestBlock,
                            genesisHash=genesisBlockHash
