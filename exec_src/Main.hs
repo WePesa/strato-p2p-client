@@ -17,6 +17,7 @@ import qualified Data.ByteString.Lazy as BL
 import Data.Conduit
 import qualified Data.Conduit.Binary as CB
 import Data.Conduit.Network
+import qualified Data.Text as T
 import Data.Time.Clock
 import qualified Database.Persist.Postgresql as SQL
 import HFlags
@@ -35,6 +36,7 @@ import Blockchain.Constants
 import Blockchain.Context
 import Blockchain.Data.Address
 import Blockchain.Data.BlockDB
+import Blockchain.Data.DataDefs
 import Blockchain.Data.RLP
 --import Blockchain.Data.SignedTransaction
 import Blockchain.Data.Transaction
@@ -375,5 +377,5 @@ main = do
           _ -> error "usage: ethereumH [servernum]"
 
   if flags_sqlPeers
-    then sequence_ $ repeat $ runPeer ipAddressesDB maybePeerNumber
+    then sequence_ $ repeat $ runPeer (map (\peer -> (T.unpack $ pPeerIp peer, fromIntegral $ pPeerPort peer)) ipAddressesDB) maybePeerNumber
     else sequence_ $ repeat $ runPeer ipAddresses maybePeerNumber

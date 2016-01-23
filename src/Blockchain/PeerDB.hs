@@ -3,9 +3,6 @@
 
 module Blockchain.PeerDB where
 
-import Control.Monad
-import qualified Data.Text as T
-import Network
 import System.IO.Unsafe
 
 import Blockchain.Data.DataDefs
@@ -18,12 +15,9 @@ import qualified Database.Persist.Postgresql as SQL
 connStr'::SQL.ConnectionString
 connStr' = BC.pack $ "host=localhost dbname=eth user=postgres password=api port=5432"
                    
-ipAddressesDB::[(String, PortNumber)]
+ipAddressesDB::[PPeer]
 ipAddressesDB = unsafePerformIO $ do
   sqldb <- runNoLoggingT $ SQL.createPostgresqlPool connStr' 20
-  peers <- 
-      flip SQL.runSqlPool sqldb $ do
-        (x::[SQL.Entity PPeer]) <- SQL.selectList [] []
-        return x
+
+  fmap (map SQL.entityVal) $ flip SQL.runSqlPool sqldb $ SQL.selectList [] []
                                
-  forM peers $ \peer -> return (T.unpack $ pPeerIp $ SQL.entityVal peer, fromIntegral $ pPeerPort $ SQL.entityVal peer)

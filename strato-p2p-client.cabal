@@ -43,6 +43,7 @@ executable strato-p2p-client
                  , resourcet
                  , strato-conf
                  , strato-p2p-client
+                 , text
                  , time
                  , transformers
     main-is: Main.hs
