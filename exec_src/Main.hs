@@ -312,57 +312,67 @@ connectAndRun myPriv myPublic otherPubKey = do
   ethDecrypt inCxt $= bytesToMessages $= tap (displayMessage False) $= handleMsg myPublic =$ tap (displayMessage True) =$ messagesToBytes =$ ethEncrypt outCxt
 
   
-runPeer::[(String, PortNumber)]->Maybe Int->IO ()
-runPeer addresses maybePeerNumber = do
-
-  peerNumber <- case maybePeerNumber of
-                  Just x -> return x
-                  Nothing -> randomRIO (0, length addresses - 1)
-
-  let (ipAddress, thePort) = addresses !! peerNumber
-
+runPeer::String->PortNumber->Point->PrivateNumber->IO ()
+runPeer ipAddress thePort otherPubKey myPriv = do
   putStrLn $ "Attempting to connect to " ++ show ipAddress ++ ":" ++ show thePort
 
+  let myPublic = calculatePublic theCurve myPriv
+  --  putStrLn $ "my pubkey is: " ++ show myPublic
+  putStrLn $ "my pubkey is: " ++ (show $ B16.encode $ B.pack $ pointToBytes myPublic)
+  
+  --  putStrLn $ "my UDP pubkey is: " ++ (show $ H.derivePubKey $ prvKey)
+  putStrLn $ "my NodeID is: " ++ (show $ B16.encode $ B.pack $ pointToBytes $ hPubKeyToPubKey $ H.derivePubKey $ fromMaybe (error "invalid private number in main") $ H.makePrvKey $ fromIntegral myPriv)
+
+  --  putStrLn $ "server public key is : " ++ (show otherPubKey)
+  putStrLn $ "server public key is : " ++ (show $ B16.encode $ B.pack $ pointToBytes otherPubKey)
+
+  --cch <- mkCache 1024 "seed"
+
+  dataset <- return "" -- mmapFileByteString "dataset0" Nothing
+
+  runTCPClient (clientSettings (fromIntegral thePort) $ BC.pack ipAddress) $ \server -> 
+
+      runResourceT $ do
+        pool <- runNoLoggingT $ SQL.createPostgresqlPool
+                "host=localhost dbname=eth user=postgres password=api port=5432" 20
+      
+        _ <- flip runStateT (Context
+                             pool
+                             0 [] dataset []) $ do
+                       transPipe liftIO (appSource server) $= connectAndRun myPriv myPublic otherPubKey $$ transPipe liftIO (appSink server)
+
+
+        return ()
+
+getPubKeyRunPeer::String->PortNumber->Maybe Point->IO ()
+getPubKeyRunPeer ipAddress thePort maybePubKey = do
   entropyPool <- liftIO createEntropyPool
 
   let g = cprgCreate entropyPool :: SystemRNG
       (myPriv, _) = generatePrivate g $ getCurveByName SEC_p256k1
 
-  let myPublic = calculatePublic theCurve myPriv
---  putStrLn $ "my pubkey is: " ++ show myPublic
-  putStrLn $ "my pubkey is: " ++ (show $ B16.encode $ B.pack $ pointToBytes myPublic)
-  
+  case maybePubKey of
+    Nothing -> do
+      putStrLn $ "Attempting to connect to " ++ show ipAddress ++ ":" ++ show thePort ++ ", but I don't have the pubkey.  I will try to use a UDP ping to get the pubkey."
+      eitherOtherPubKey <- getServerPubKey (fromMaybe (error "invalid private number in main") $ H.makePrvKey $ fromIntegral myPriv) ipAddress thePort
+      case eitherOtherPubKey of
+            Right otherPubKey -> do
+                               putStrLn $ "#### Success, the pubkey has been obtained: " ++ (show $ B16.encode $ B.pack $ pointToBytes otherPubKey)
+                               runPeer ipAddress thePort otherPubKey myPriv
+            Left e -> putStrLn $ "Error, couldn't get public key for peer: " ++ show e
+    Just otherPubKey -> runPeer ipAddress thePort otherPubKey myPriv
+                      
 
---  putStrLn $ "my UDP pubkey is: " ++ (show $ H.derivePubKey $ prvKey)
-  putStrLn $ "my NodeID is: " ++ (show $ B16.encode $ B.pack $ pointToBytes $ hPubKeyToPubKey $ H.derivePubKey $ fromMaybe (error "invalid private number in main") $ H.makePrvKey $ fromIntegral myPriv)
+runPeerInList::[(String, PortNumber, Maybe Point)]->Maybe Int->IO ()
+runPeerInList addresses maybePeerNumber = do
+  peerNumber <- case maybePeerNumber of
+                  Just x -> return x
+                  Nothing -> randomRIO (0, length addresses - 1)
 
-  eitherOtherPubKey <- getServerPubKey (fromMaybe (error "invalid private number in main") $ H.makePrvKey $ fromIntegral myPriv) ipAddress thePort
+  let (ipAddress, thePort, maybePubKey) = addresses !! peerNumber
 
-  case eitherOtherPubKey of
-       Right otherPubKey -> do
-           --  putStrLn $ "server public key is : " ++ (show otherPubKey)
-           putStrLn $ "server public key is : " ++ (show $ B16.encode $ B.pack $ pointToBytes otherPubKey)
-
-           --cch <- mkCache 1024 "seed"
-
-           dataset <- return "" -- mmapFileByteString "dataset0" Nothing
-
-           runTCPClient (clientSettings (fromIntegral thePort) $ BC.pack ipAddress) $ \server -> 
-
-               runResourceT $ do
-                              pool <- runNoLoggingT $ SQL.createPostgresqlPool
-                                      "host=localhost dbname=eth user=postgres password=api port=5432" 20
-      
-                              _ <- flip runStateT (Context
-                                                   pool
-                                                   0 [] dataset []) $ do
-                                       transPipe liftIO (appSource server) $= connectAndRun myPriv myPublic otherPubKey $$ transPipe liftIO (appSink server)
-
-
-                              return ()
-                                  
-       Left e -> putStrLn $ "Error, couldn't get public key for peer: " ++ show e
-
+  getPubKeyRunPeer ipAddress thePort maybePubKey
+               
 main::IO ()    
 main = do
   hSetBuffering stdout NoBuffering
@@ -377,5 +387,6 @@ main = do
           _ -> error "usage: ethereumH [servernum]"
 
   if flags_sqlPeers
-    then sequence_ $ repeat $ runPeer (map (\peer -> (T.unpack $ pPeerIp peer, fromIntegral $ pPeerPort peer)) ipAddressesDB) maybePeerNumber
-    else sequence_ $ repeat $ runPeer ipAddresses maybePeerNumber
+    --then sequence_ $ repeat $ runPeerInList (map (\peer -> (T.unpack $ pPeerIp peer, fromIntegral $ pPeerPort peer, Just $ pPeerPubkey peer)) ipAddressesDB) maybePeerNumber
+    then sequence_ $ repeat $ runPeerInList (map (\peer -> (T.unpack $ pPeerIp peer, fromIntegral $ pPeerPort peer, Nothing)) ipAddressesDB) maybePeerNumber
+    else sequence_ $ repeat $ runPeerInList (map (\peer -> (fst peer, snd peer, Nothing)) ipAddresses) maybePeerNumber
