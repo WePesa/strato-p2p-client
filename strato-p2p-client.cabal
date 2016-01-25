@@ -87,6 +87,7 @@ library
 --                   Blockchain.Data.TransactionReceipt
                    Blockchain.Data.Wire
                    Blockchain.Display
+                   Blockchain.Event
 --                   Blockchain.JCommand
 --                   Blockchain.Mining
                    Blockchain.Options

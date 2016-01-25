@@ -27,6 +27,7 @@ import Blockchain.Data.BlockDB
 import Blockchain.Data.DataDefs
 import Blockchain.Data.Wire
 import Blockchain.DB.SQLDB
+import Blockchain.Event
 import Blockchain.Format
 import Blockchain.SHA
 
@@ -106,7 +107,7 @@ findFirstHashAlreadyInDB::[SHA]->ContextM (Maybe SHA)
 findFirstHashAlreadyInDB hashes =
   fmap headMay $ filterM getBlockExists hashes
 
-handleNewBlockHashes::[SHA]->Conduit Message ContextM Message
+handleNewBlockHashes::[SHA]->Conduit Event ContextM Message
 --handleNewBlockHashes _ list | trace ("########### handleNewBlockHashes: " ++ show list) $ False = undefined
 handleNewBlockHashes [] = do
   --this really shouldn't happen, but the go client was doing it
@@ -130,7 +131,7 @@ handleNewBlockHashes blockHashes = do
                 lift $ addNeededBlockHashes $ takeWhile (/= hashInDB) blockHashes
                 askForSomeBlocks
   
-askForSomeBlocks::Conduit Message ContextM Message
+askForSomeBlocks::Conduit Event ContextM Message
 askForSomeBlocks = do
   lift $ removeLoadedHashes
   neededHashes <- lift $ getLowestHashes 128
@@ -138,7 +139,7 @@ askForSomeBlocks = do
     yield $ GetBlocks neededHashes
 
 
-handleNewBlocks::[Block]->Conduit Message ContextM Message
+handleNewBlocks::[Block]->Conduit Event ContextM Message
 handleNewBlocks [] = error "handleNewBlocks called with empty block list"
 handleNewBlocks blocks = do
   let orderedBlocks =

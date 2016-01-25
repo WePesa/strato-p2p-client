@@ -16,6 +16,7 @@ import qualified Data.ByteString.Char8 as BC
 import qualified Data.ByteString.Lazy as BL
 import Data.Conduit
 import qualified Data.Conduit.Binary as CB
+import qualified Data.Conduit.List as CL
 import Data.Conduit.Network
 import qualified Data.Text as T
 import Data.Time.Clock
@@ -45,6 +46,7 @@ import Blockchain.Database.MerklePatricia
 import Blockchain.DB.DetailsDB
 --import Blockchain.DB.ModifyStateDB
 import Blockchain.Display
+import Blockchain.Event
 import Blockchain.PeerUrls
 import Blockchain.Options
 --import Blockchain.SampleTransactions
@@ -113,7 +115,7 @@ submitNextBlock baseDifficulty b = do
         lift $ addBlocks False [theNewBlock]
 -}
 
-submitNextBlockToDB::Block->[Transaction]->Conduit Message ContextM Message
+submitNextBlockToDB::Block->[Transaction]->Conduit Event ContextM Message
 submitNextBlockToDB b transactions = do
   ts <- liftIO getCurrentTime
   newBlock <- lift $ getNextBlock b ts transactions
@@ -122,7 +124,7 @@ submitNextBlockToDB b transactions = do
   let theNewBlock = newBlock{blockBlockData=(blockBlockData newBlock){blockDataNonce= -1}}
   lift $ addBlocks [theNewBlock]
 
-submitNewBlock::Block->[Transaction]->Conduit Message ContextM Message
+submitNewBlock::Block->[Transaction]->Conduit Event ContextM Message
 submitNewBlock b transactions = do
   --lift $ addTransactions b (blockDataGasLimit $ blockBlockData b) transactions
   submitNextBlockToDB b transactions
@@ -136,8 +138,7 @@ ifBlockInDBSubmitNextBlock baseDifficulty b = do
     _ -> submitNextBlock baseDifficulty b
 -}
 
-
-handleMsg::Point->Conduit Message ContextM Message
+handleMsg::Point->Conduit Event ContextM Message
 handleMsg peerId = do
   yield $ Hello {
               version = 4,
@@ -149,7 +150,7 @@ handleMsg peerId = do
 
   awaitForever $ \msg ->
     case msg of
-        Hello{} -> do
+        MsgEvt Hello{} -> do
                bestBlock <- lift getBestBlock
                genesisBlockHash <- lift getGenesisBlockHash
                yield Status{
@@ -161,26 +162,26 @@ handleMsg peerId = do
                            latestHash=blockHash bestBlock,
                            genesisHash=genesisBlockHash
                          }
-        Ping -> do
+        MsgEvt Ping -> do
                lift addPingCount
                yield Pong
-        GetPeers -> do
+        MsgEvt GetPeers -> do
                yield $ Peers []
                yield GetPeers
-        Peers thePeers -> do
+        MsgEvt (Peers thePeers) -> do
                lift $ setPeers thePeers
-        BlockHashes blockHashes -> do
+        MsgEvt (BlockHashes blockHashes) -> do
                handleNewBlockHashes blockHashes
-        GetBlocks _ -> do
+        MsgEvt (GetBlocks _) -> do
                yield $ Blocks []
-        Blocks blocks -> do
+        MsgEvt (Blocks blocks) -> do
                handleNewBlocks blocks
                --NewBlockPacket block baseDifficulty -> do
-        NewBlockPacket block _ -> do
+        MsgEvt (NewBlockPacket block _) -> do
                handleNewBlocks [block]
                --ifBlockInDBSubmitNextBlock baseDifficulty block
 
-        Status{latestHash=lh, genesisHash=gh} -> do
+        MsgEvt (Status{latestHash=lh, genesisHash=gh}) -> do
                genesisBlockHash <- lift getGenesisBlockHash
                when (gh /= genesisBlockHash) $ error "Wrong genesis block hash!!!!!!!!"
                lift removeLoadedHashes
@@ -189,10 +190,10 @@ handleMsg peerId = do
                  [] -> handleNewBlockHashes [lh]
                  [x] -> yield $ GetBlockHashes x 0x500
                  _ -> error "unexpected multiple values in call to getLowetHashes 1"
-        GetTransactions _ -> do
+        MsgEvt (GetTransactions _) -> do
                yield $ Transactions []
                --liftIO $ sendMessage handle GetTransactions
-        Transactions transactions -> do
+        MsgEvt (Transactions transactions) -> do
                bestBlock <-lift getBestBlock
                when flags_wrapTransactions $ submitNewBlock bestBlock transactions
            
@@ -309,7 +310,7 @@ tap f = do
 connectAndRun::PrivateNumber->Point->PublicPoint->Conduit B.ByteString ContextM B.ByteString
 connectAndRun myPriv myPublic otherPubKey = do
   (outCxt, inCxt) <- ethCryptConnect myPriv otherPubKey
-  ethDecrypt inCxt $= bytesToMessages $= tap (displayMessage False) $= handleMsg myPublic =$ tap (displayMessage True) =$ messagesToBytes =$ ethEncrypt outCxt
+  ethDecrypt inCxt $= bytesToMessages $= tap (displayMessage False) $= CL.map MsgEvt $= handleMsg myPublic =$ tap (displayMessage True) =$ messagesToBytes =$ ethEncrypt outCxt
 
   
 runPeer::String->PortNumber->Point->PrivateNumber->IO ()
