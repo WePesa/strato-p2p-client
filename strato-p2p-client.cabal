@@ -41,6 +41,7 @@ executable strato-p2p-client
                  , persistent-postgresql
                  , random
                  , resourcet
+                 , stm-conduit
                  , strato-conf
                  , strato-p2p-client
                  , text
@@ -60,6 +61,7 @@ library
                  , blockapps-data
                  , bytestring
                  , conduit
+                 , conduit-combinators
                  , cryptohash
                  , crypto-pubkey-types
                  , esqueleto
@@ -71,9 +73,12 @@ library
                  , monad-logger
                  , mtl
                  , network
+                 , persistent
                  , persistent-postgresql
+                 , postgresql-simple
                  , resourcet
                  , safe
+                 , split
                  , text
                  , time
                  , transformers
@@ -92,6 +97,7 @@ library
 --                   Blockchain.Mining
                    Blockchain.Options
                    Blockchain.PeerDB
+                   Blockchain.RawTXNotify  
 --                   Blockchain.SampleTransactions
     ghc-options: -Wall -O2
     buildable: True

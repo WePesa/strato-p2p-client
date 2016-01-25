@@ -18,6 +18,7 @@ import Data.Conduit
 import qualified Data.Conduit.Binary as CB
 import qualified Data.Conduit.List as CL
 import Data.Conduit.Network
+import Data.Conduit.TMChan
 import qualified Data.Text as T
 import Data.Time.Clock
 import qualified Database.Persist.Postgresql as SQL
@@ -48,6 +49,7 @@ import Blockchain.DB.DetailsDB
 import Blockchain.Display
 import Blockchain.Event
 import Blockchain.PeerUrls
+import Blockchain.RawTXNotify
 import Blockchain.Options
 --import Blockchain.SampleTransactions
 import Blockchain.PeerDB
@@ -306,12 +308,6 @@ tap f = do
   awaitForever $ \x -> do
       lift $ f x
       yield x
-        
-connectAndRun::PrivateNumber->Point->PublicPoint->Conduit B.ByteString ContextM B.ByteString
-connectAndRun myPriv myPublic otherPubKey = do
-  (outCxt, inCxt) <- ethCryptConnect myPriv otherPubKey
-  ethDecrypt inCxt $= bytesToMessages $= tap (displayMessage False) $= CL.map MsgEvt $= handleMsg myPublic =$ tap (displayMessage True) =$ messagesToBytes =$ ethEncrypt outCxt
-
   
 runPeer::String->PortNumber->Point->PrivateNumber->IO ()
 runPeer ipAddress thePort otherPubKey myPriv = do
@@ -337,10 +333,27 @@ runPeer ipAddress thePort otherPubKey myPriv = do
         pool <- runNoLoggingT $ SQL.createPostgresqlPool
                 "host=localhost dbname=eth user=postgres password=api port=5432" 20
       
-        _ <- flip runStateT (Context
-                             pool
-                             0 [] dataset []) $ do
-                       transPipe liftIO (appSource server) $= connectAndRun myPriv myPublic otherPubKey $$ transPipe liftIO (appSink server)
+        _ <- flip runStateT (Context pool 0 [] dataset []) $ do
+          (rs, (outCxt, inCxt)) <-
+            transPipe liftIO (appSource server) $$+
+            ethCryptConnect myPriv otherPubKey `fuseUpstream`
+            transPipe liftIO (appSink server)
+
+          eventSource <- mergeSources [
+            transPipe liftIO (appSource server) =$=
+            ethDecrypt inCxt =$=
+            bytesToMessages =$=
+            tap (displayMessage False) =$=
+            CL.map MsgEvt,
+            transPipe liftIO txNotificationSource =$= CL.map NewTX
+            ] 2
+
+          eventSource =$=
+            handleMsg myPublic =$=
+            tap (displayMessage True) =$=
+            messagesToBytes =$=
+            ethEncrypt outCxt $$
+            transPipe liftIO (appSink server)
 
 
         return ()
