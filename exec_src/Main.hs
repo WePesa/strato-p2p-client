@@ -198,6 +198,10 @@ handleMsg peerId = do
         MsgEvt (Transactions transactions) -> do
                bestBlock <-lift getBestBlock
                when flags_wrapTransactions $ submitNewBlock bestBlock transactions
+
+        NewTX tx -> do
+               liftIO $ putStrLn $ "sending new transaction " ++ (show tx)
+               yield $ Transactions [rawTX2TX tx]
            
         _-> return ()
 
