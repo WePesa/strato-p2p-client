@@ -56,6 +56,7 @@ import Blockchain.PeerDB
 import Blockchain.SHA
 --import Blockchain.SigningTools
 --import Blockchain.Verifier
+import Blockchain.TCPClientWithTimeout
 import Blockchain.Util
 import qualified Data.ByteString.Base16 as B16
 --import Debug.Trace
@@ -331,8 +332,7 @@ runPeer ipAddress thePort otherPubKey myPriv = do
 
   dataset <- return "" -- mmapFileByteString "dataset0" Nothing
 
-  runTCPClient (clientSettings (fromIntegral thePort) $ BC.pack ipAddress) $ \server -> 
-
+  runTCPClientWithConnectTimeout (clientSettings (fromIntegral thePort) $ BC.pack ipAddress) 5 $ \server -> 
       runResourceT $ do
         pool <- runNoLoggingT $ SQL.createPostgresqlPool
                 "host=localhost dbname=eth user=postgres password=api port=5432" 20
