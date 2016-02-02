@@ -80,6 +80,7 @@ library
                  , resourcet
                  , safe
                  , split
+                 , stm-conduit
                  , text
                  , time
                  , transformers
@@ -94,6 +95,7 @@ library
                    Blockchain.Data.Wire
                    Blockchain.Display
                    Blockchain.Event
+                   Blockchain.ExtMergeSources
 --                   Blockchain.JCommand
 --                   Blockchain.Mining
                    Blockchain.Options

@@ -48,6 +48,7 @@ import Blockchain.DB.DetailsDB
 --import Blockchain.DB.ModifyStateDB
 import Blockchain.Display
 import Blockchain.Event
+import Blockchain.ExtMergeSources
 import Blockchain.PeerUrls
 import Blockchain.RawTXNotify
 import Blockchain.Options
@@ -343,7 +344,7 @@ runPeer ipAddress thePort otherPubKey myPriv = do
             ethCryptConnect myPriv otherPubKey `fuseUpstream`
             transPipe liftIO (appSink server)
 
-          eventSource <- mergeSources [
+          eventSource <- mergeSourcesCloseForAny [
             transPipe liftIO (appSource server) =$=
             ethDecrypt inCxt =$=
             bytesToMessages =$=
