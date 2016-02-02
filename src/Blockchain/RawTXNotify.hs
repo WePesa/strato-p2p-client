@@ -39,7 +39,7 @@ txNotificationSource' pool conn = forever $ do
     _ <- liftIO $ PS.execute_ conn "LISTEN new_transaction;"
     liftIO $ putStrLn $ "about to listen for raw transaction notifications"
     rowId <- liftIO $ fmap (SQL.toSqlKey . read . BC.unpack . notificationData) $ getNotification conn
-    liftIO $ putStrLn $ "########### raw transaction has been added: rowId=" ++ show rowId
+    --liftIO $ putStrLn $ "########### raw transaction has been added: rowId=" ++ show rowId
     maybeTx <- lift $ getTransaction pool rowId
     case maybeTx of
      Nothing -> error "wow, item was removed in notificationSource before I could get it....  This didn't seem like a likely occurence when I was programming, you should probably deal with this possibility now"

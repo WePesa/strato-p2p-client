@@ -202,8 +202,8 @@ handleMsg peerId = do
                when flags_wrapTransactions $ submitNewBlock bestBlock transactions
 
         NewTX tx -> do
-               liftIO $ putStrLn $ "sending new transaction " ++ (show tx)
-               yield $ Transactions [rawTX2TX tx]
+               when (not $ rawTransactionFromBlock tx) $ do
+                   yield $ Transactions [rawTX2TX tx]
            
         _-> return ()
 
