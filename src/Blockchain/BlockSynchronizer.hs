@@ -29,6 +29,7 @@ import Blockchain.Data.Wire
 import Blockchain.DB.SQLDB
 import Blockchain.Event
 import Blockchain.Format
+import Blockchain.Options
 import Blockchain.SHA
 
 --import Debug.Trace
@@ -66,7 +67,15 @@ addBlocks::[Block]->ContextM ()
 addBlocks blocks = do
   before <- liftIO $ getPOSIXTime
 
-  _ <- putBlocks blocks False
+  --when (blockDataNumber (blockBlockData $ head blocks) > 100000) $ error "adding block over 100000"
+            
+  if flags_kafka
+    then do
+    putBlocksKafka blocks
+    return ()
+    else do
+    putBlocks blocks False
+    return ()
 
   after <- liftIO $ getPOSIXTime
 
@@ -90,6 +99,14 @@ removeLoadedHashes = do
           E.subList_select $
             E.from $ \bd -> do
               return (bd E.^. BlockDataRefHash)))
+
+removeHashes :: (MonadResource m, HasSQLDB m)=>[SHA]->m ()
+removeHashes hashes = do
+  sqlQuery $
+    E.delete $
+      E.from $ \bh -> do
+        E.where_ (bh E.^. NeededBlockHashHash `E.in_` E.valList hashes)
+
 
 getLowestHashes :: (MonadResource m, HasSQLDB m)=>Int64->m [SHA]
 getLowestHashes n = do
@@ -133,6 +150,7 @@ handleNewBlockHashes blockHashes = do
   
 askForSomeBlocks::Conduit Event ContextM Message
 askForSomeBlocks = do
+  --error "askForSomeBlocks called"
   lift $ removeLoadedHashes
   neededHashes <- lift $ getLowestHashes 128
   when (length neededHashes > 0) $
@@ -153,10 +171,16 @@ handleNewBlocks blocks = do
     (0, Nothing) -> do
       liftIO $ putStrLn $ CL.red $ "Resynching!!!!!!!!"
       handleNewBlockHashes [blockHash $ head orderedBlocks] -- head OK, [] weeded out
-    (_, Nothing) ->
-      liftIO $ putStrLn $ CL.red "Warning: a new block has arrived before another block sync is in progress.  This block will be thrown away for now, and re-requested later."
-    (_, Just _) -> do
+    --(_, Nothing) ->
+    --  liftIO $ putStrLn $ CL.red "Warning: a new block has arrived before another block sync is in progress.  This block will be thrown away for now, and re-requested later."
+    --(_, Just _) -> do
+    (_, _) -> do
       liftIO $ putStrLn "Submitting new blocks"
       lift $ addBlocks $ sortBy (compare `on` blockDataNumber . blockBlockData) blocks
       liftIO $ putStrLn $ show (length blocks) ++ " blocks have been submitted"
+      liftIO $ putStrLn "removing hashes"
+      let hashesToDelete = map blockHash blocks
+      liftIO $ putStrLn $ "hashesToDelete: " ++ show hashesToDelete
+      lift $ removeHashes hashesToDelete
+      liftIO $ putStrLn "done removing hashes"
       askForSomeBlocks
