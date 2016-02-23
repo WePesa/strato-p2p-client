@@ -142,6 +142,7 @@ askForSomeBlocks = do
 handleNewBlocks::[Block]->Conduit Event ContextM Message
 handleNewBlocks [] = error "handleNewBlocks called with empty block list"
 handleNewBlocks blocks = do
+  --error "blocks are being loaded"
   let orderedBlocks =
         sortBy (compare `on` blockDataNumber . blockBlockData) blocks
 
