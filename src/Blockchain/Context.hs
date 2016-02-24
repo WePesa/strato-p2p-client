@@ -5,6 +5,8 @@ module Blockchain.Context (
   ContextM,
   getDebugMsg,
   addDebugMsg,
+  getRequestedHashes,
+  setRequestedHashes,
   clearDebugMsg,
   addNeededBlockHashes,
   clearNeededBlockHashes,
@@ -31,7 +33,8 @@ data Context =
     pingCount::Int,
     peers::[Peer],
     miningDataset::B.ByteString,
-    vmTrace::[String]
+    vmTrace::[String],
+    requestedHashes::[(E.Key NeededBlockHash, SHA)]
     }
 
 type ContextM = StateT Context (ResourceT IO)
@@ -70,6 +73,16 @@ clearDebugMsg::ContextM ()
 clearDebugMsg = do
   cxt <- get
   put cxt{vmTrace=[]}
+
+getRequestedHashes::ContextM [(E.Key NeededBlockHash, SHA)]
+getRequestedHashes = do
+  cxt <- get
+  return $ requestedHashes cxt
+
+setRequestedHashes::[(E.Key NeededBlockHash, SHA)]->ContextM ()
+setRequestedHashes hashes = do
+  cxt <- get
+  put cxt{requestedHashes=hashes}
 
 addNeededBlockHashes::[SHA]->ContextM ()
 addNeededBlockHashes blockHashes = do

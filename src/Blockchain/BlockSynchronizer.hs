@@ -107,8 +107,16 @@ removeHashes hashes = do
       E.from $ \bh -> do
         E.where_ (bh E.^. NeededBlockHashHash `E.in_` E.valList hashes)
 
+removeHashes' :: (MonadResource m, HasSQLDB m)=>E.Key NeededBlockHash->E.Key NeededBlockHash->m ()
+removeHashes' min max = do
+  sqlQuery $
+    E.delete $
+      E.from $ \bh -> do
+        E.where_ ((bh E.^. NeededBlockHashId E.<=. E.val max)
+                  E.&&. (bh E.^. NeededBlockHashId E.>=. E.val min))
 
-getLowestHashes :: (MonadResource m, HasSQLDB m)=>Int64->m [SHA]
+
+getLowestHashes :: (MonadResource m, HasSQLDB m)=>Int64->m [(E.Key NeededBlockHash, SHA)]
 getLowestHashes n = do
   res <- 
     sqlQuery $
@@ -116,9 +124,9 @@ getLowestHashes n = do
         E.from $ \bh -> do
           E.orderBy [E.desc $ bh E.^. NeededBlockHashId]
           E.limit n
-          return (bh E.^. NeededBlockHashHash)
+          return (bh E.^. NeededBlockHashId, bh E.^. NeededBlockHashHash)
 
-  return $ map E.unValue res
+  return $ map (\(x, y) -> (E.unValue x, E.unValue y)) res
 
 findFirstHashAlreadyInDB::[SHA]->ContextM (Maybe SHA)
 findFirstHashAlreadyInDB hashes =
@@ -154,13 +162,23 @@ askForSomeBlocks = do
   lift $ removeLoadedHashes
   neededHashes <- lift $ getLowestHashes 128
   when (length neededHashes > 0) $
-    yield $ GetBlocks neededHashes
+    yield $ GetBlocks $ map snd neededHashes
+  lift $ setRequestedHashes neededHashes
 
 
 handleNewBlocks::[Block]->Conduit Event ContextM Message
 handleNewBlocks [] = error "handleNewBlocks called with empty block list"
 handleNewBlocks blocks = do
   --error "blocks are being loaded"
+
+  let incomingHashes = map blockHash blocks
+
+  requestedHashes' <- lift getRequestedHashes
+  
+  if (incomingHashes /= map snd requestedHashes')
+    then error "hashes don't match"
+    else liftIO $ putStrLn "hashes match"
+  
   let orderedBlocks =
         sortBy (compare `on` blockDataNumber . blockBlockData) blocks
 
@@ -180,9 +198,9 @@ handleNewBlocks blocks = do
       lift $ addBlocks $ sortBy (compare `on` blockDataNumber . blockBlockData) blocks
       liftIO $ putStrLn $ show (length blocks) ++ " blocks have been submitted"
       liftIO $ putStrLn "removing hashes"
-      let hashesToDelete = map blockHash blocks
-      liftIO $ putStrLn $ "hashesToDelete: " ++ unlines (map format hashesToDelete)
+      liftIO $ putStrLn $ "hashesToDelete: " ++ unlines (map format incomingHashes)
       liftIO $ putStrLn "removing hashes"
-      lift $ removeHashes hashesToDelete
+      --lift $ removeHashes incomingHashes
+      lift $ removeHashes' (minimum $ map fst requestedHashes') (maximum $ map fst requestedHashes')
       liftIO $ putStrLn "done removing hashes"
       askForSomeBlocks

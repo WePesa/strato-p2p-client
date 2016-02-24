@@ -192,7 +192,7 @@ handleMsg peerId = do
                previousLowestHash <- lift $ getLowestHashes 1
                case previousLowestHash of
                  [] -> handleNewBlockHashes [lh]
-                 [x] -> yield $ GetBlockHashes x 0x500
+                 [x] -> yield $ GetBlockHashes (snd x) 0x500
                  _ -> error "unexpected multiple values in call to getLowetHashes 1"
         MsgEvt (GetTransactions _) -> do
                yield $ Transactions []
@@ -338,7 +338,7 @@ runPeer ipAddress thePort otherPubKey myPriv = do
         pool <- runNoLoggingT $ SQL.createPostgresqlPool
                 "host=localhost dbname=eth user=postgres password=api port=5432" 20
       
-        _ <- flip runStateT (Context pool 0 [] dataset []) $ do
+        _ <- flip runStateT (Context pool 0 [] dataset [] []) $ do
           (rs, (outCxt, inCxt)) <-
             transPipe liftIO (appSource server) $$+
             ethCryptConnect myPriv otherPubKey `fuseUpstream`
