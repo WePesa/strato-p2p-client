@@ -181,7 +181,8 @@ handleNewBlocks blocks = do
       liftIO $ putStrLn $ show (length blocks) ++ " blocks have been submitted"
       liftIO $ putStrLn "removing hashes"
       let hashesToDelete = map blockHash blocks
-      liftIO $ putStrLn $ "hashesToDelete: " ++ show hashesToDelete
+      liftIO $ putStrLn $ "hashesToDelete: " ++ unlines (map format hashesToDelete)
+      liftIO $ putStrLn "removing hashes"
       lift $ removeHashes hashesToDelete
       liftIO $ putStrLn "done removing hashes"
       askForSomeBlocks
