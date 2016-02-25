@@ -23,6 +23,7 @@ executable strato-p2p-client
                    base >= 4 && < 5
                  , base16-bytestring
                  , blockapps-data
+                 , blockapps-util
                  , bytestring
                  , conduit
                  , conduit-extra
@@ -31,10 +32,9 @@ executable strato-p2p-client
                  , crypto-random
                  , ethereum-encryption
                  , ethereum-rlp
-                 , merkle-patricia-db
-                 , blockapps-util
                  , haskoin
                  , hflags
+                 , merkle-patricia-db
                  , monad-logger
                  , mtl
                  , network
