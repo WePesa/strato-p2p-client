@@ -159,7 +159,7 @@ handleNewBlockHashes blockHashes = do
 askForSomeBlocks::Conduit Event ContextM Message
 askForSomeBlocks = do
   --error "askForSomeBlocks called"
-  lift $ removeLoadedHashes
+  --lift $ removeLoadedHashes
   neededHashes <- lift $ getLowestHashes 128
   when (length neededHashes > 0) $
     yield $ GetBlocks $ map snd neededHashes
@@ -198,7 +198,7 @@ handleNewBlocks blocks = do
       lift $ addBlocks $ sortBy (compare `on` blockDataNumber . blockBlockData) blocks
       liftIO $ putStrLn $ show (length blocks) ++ " blocks have been submitted"
       liftIO $ putStrLn "removing hashes"
-      liftIO $ putStrLn $ "hashesToDelete: " ++ unlines (map format incomingHashes)
+      --liftIO $ putStrLn $ "hashesToDelete: " ++ unlines (map format incomingHashes)
       liftIO $ putStrLn "removing hashes"
       --lift $ removeHashes incomingHashes
       lift $ removeHashes' (minimum $ map fst requestedHashes') (maximum $ map fst requestedHashes')
