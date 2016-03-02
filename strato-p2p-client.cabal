@@ -70,7 +70,8 @@ library
                  , ethereum-rlp
                  , blockapps-util
                  , hflags
---                 , hminer
+                 , lens
+                 , milena
                  , monad-logger
                  , mtl
                  , network

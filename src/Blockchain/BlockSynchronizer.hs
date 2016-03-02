@@ -1,3 +1,5 @@
+{-# LANGUAGE OverloadedStrings #-}
+
 module Blockchain.BlockSynchronizer (
                           addBlocks,
                           handleNewBlockHashes,
@@ -6,14 +8,19 @@ module Blockchain.BlockSynchronizer (
                           getLowestHashes
                          ) where
 
+import Control.Lens
 import Control.Monad.IO.Class
 import Control.Monad.State
 import Control.Monad.Trans.Resource
 import Data.Conduit
 import Data.Function
 import Data.List
+import Data.Maybe
 import qualified Database.Esqueleto as E
 import GHC.Int
+import Network.Kafka
+import Network.Kafka.Consumer
+import Network.Kafka.Protocol hiding (Message)
 import Safe
 
 import Data.Time.Clock.POSIX
@@ -25,6 +32,7 @@ import qualified Blockchain.Colors as CL
 import Blockchain.Context
 import Blockchain.Data.BlockDB
 import Blockchain.Data.DataDefs
+import Blockchain.Data.RLP
 import Blockchain.Data.Wire
 import Blockchain.DB.SQLDB
 import Blockchain.Event
@@ -128,9 +136,38 @@ getLowestHashes n = do
 
   return $ map (\(x, y) -> (E.unValue x, E.unValue y)) res
 
-findFirstHashAlreadyInDB::[SHA]->ContextM (Maybe SHA)
-findFirstHashAlreadyInDB hashes =
+findFirstHashAlreadyInDB'::[SHA]->ContextM (Maybe SHA)
+findFirstHashAlreadyInDB' hashes =
   fmap headMay $ filterM getBlockExists hashes
+
+findFirstHashAlreadyInDB::[SHA]->ContextM (Maybe SHA)
+findFirstHashAlreadyInDB hashes = do
+  lastBlockHashes <- liftIO getLastBlockHashes
+  return $ headMay $ filter (`elem` lastBlockHashes) hashes
+
+fourth4::(a,b,c,d)->d
+fourth4 (_, _, _, x) = x
+
+fifth5::(a,b,c,d,e)->e
+fifth5 (_, _, _, _, x) = x
+
+getLastBlockHashes::IO [SHA]
+getLastBlockHashes = do
+  ret <-
+    runKafka (mkKafkaState "qqqqkafkaclientidqqqq" ("127.0.0.1", 9092)) $ do
+      stateRequiredAcks .= -1
+      stateWaitSize .= 1
+      stateWaitTime .= 100000
+      lastOffset <- getLastOffset LatestTime 0 "thetopic"
+      let offset = max (lastOffset - 10) 0
+      result <- fetch (Offset $ fromIntegral offset) 0 "thetopic"
+      let qq = concat $ map (map (_kafkaByteString . fromJust . _valueBytes . fifth5 . _messageFields .  _setMessage)) $ map _messageSetMembers $ map fourth4 $ head $ map snd $ _fetchResponseFields result
+      return $ fmap (rlpDecode . rlpDeserialize) qq
+
+  case ret of
+    Left e -> error $ show e
+    Right v -> return $ map blockHash v
+
 
 handleNewBlockHashes::[SHA]->Conduit Event ContextM Message
 --handleNewBlockHashes _ list | trace ("########### handleNewBlockHashes: " ++ show list) $ False = undefined
@@ -175,8 +212,8 @@ handleNewBlocks blocks = do
 
   requestedHashes' <- lift getRequestedHashes
   
-  if (incomingHashes /= map snd requestedHashes')
-    then error "hashes don't match"
+  if (not $ incomingHashes `isPrefixOf` map snd requestedHashes')
+    then error $ "hashes don't match: got\n" ++ unlines (map format incomingHashes) ++ "\nexpected\n" ++ unlines (map (format . snd) requestedHashes')
     else liftIO $ putStrLn "hashes match"
   
   let orderedBlocks =
@@ -201,6 +238,6 @@ handleNewBlocks blocks = do
       --liftIO $ putStrLn $ "hashesToDelete: " ++ unlines (map format incomingHashes)
       liftIO $ putStrLn "removing hashes"
       --lift $ removeHashes incomingHashes
-      lift $ removeHashes' (minimum $ map fst requestedHashes') (maximum $ map fst requestedHashes')
+      lift $ removeHashes' (minimum $ map fst $ take (length incomingHashes) requestedHashes') (maximum $ map fst $ take (length incomingHashes) requestedHashes')
       liftIO $ putStrLn "done removing hashes"
       askForSomeBlocks
