@@ -22,6 +22,7 @@ executable strato-p2p-client
     build-depends: 
                    base >= 4 && < 5
                  , base16-bytestring
+                 , blockapps-data-db
                  , blockapps-data
                  , bytestring
                  , conduit
@@ -58,6 +59,7 @@ library
                    base >= 4 && < 5
 --                 , array
                  , binary
+                 , blockapps-data-db
                  , blockapps-data
                  , bytestring
                  , conduit
