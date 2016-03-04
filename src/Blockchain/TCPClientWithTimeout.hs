@@ -41,5 +41,5 @@ runTCPClientWithConnectTimeout settings secs cont = do
        Left e -> throw (e::SomeException)
        Right x -> return x
     else do
-      error "runTCPClientWithConnectTimeout: could not connect in time"
+      _ <- error "runTCPClientWithConnectTimeout: could not connect in time"
       killThread clientThreadID

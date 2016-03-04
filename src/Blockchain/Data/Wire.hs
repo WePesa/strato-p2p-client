@@ -157,8 +157,8 @@ instance Format Message where
     CL.blue "GetBlocks:" ++ 
     tab ("\n" ++ intercalate "\n    " (format <$> shas))
   format (Blocks blocks) = CL.blue "Blocks:" ++ tab("\n" ++ intercalate "\n    " (format <$> blocks))
-  format (GetBlockHashes hash numChild) =
-    CL.blue "GetBlockHashes" ++ " (max: " ++ show numChild ++ "): " ++ format hash
+  format (GetBlockHashes hash' numChild) =
+    CL.blue "GetBlockHashes" ++ " (max: " ++ show numChild ++ "): " ++ format hash'
   format (NewBlockPacket block d) = CL.blue "NewBlockPacket" ++ " (" ++ show d ++ ")" ++ tab ("\n" ++ format block)
   format (PacketCount c) =
     CL.blue "PacketCount:" ++ show c
@@ -203,8 +203,8 @@ obj2WireMessage 0x12 (RLPArray transactions) =
   Transactions $ rlpDecode <$> transactions
 
 
-obj2WireMessage 0x13 (RLPArray [hash, num]) =
-  GetBlockHashes (rlpDecode hash) (rlpDecode num)
+obj2WireMessage 0x13 (RLPArray [hash', num]) =
+  GetBlockHashes (rlpDecode hash') (rlpDecode num)
 obj2WireMessage 0x14 (RLPArray items) =
   BlockHashes $ rlpDecode <$> items
 
@@ -253,8 +253,8 @@ wireMessage2Obj (Status ver nID d lh gh) =
 wireMessage2Obj (QqqqStatus ver) = (0x10, RLPArray [rlpEncode $ toInteger ver])
 wireMessage2Obj (GetTransactions transactions) = (0x11, RLPArray (rlpEncode <$> transactions))
 wireMessage2Obj (Transactions transactions) = (0x12, RLPArray (rlpEncode <$> transactions))
-wireMessage2Obj (GetBlockHashes hash numChildren) = 
-    (0x13, RLPArray [rlpEncode hash, rlpEncode numChildren])
+wireMessage2Obj (GetBlockHashes hash' numChildren) = 
+    (0x13, RLPArray [rlpEncode hash', rlpEncode numChildren])
 wireMessage2Obj (BlockHashes shas) = 
   (0x14, RLPArray (rlpEncode <$> shas))
 wireMessage2Obj (GetBlocks shas) = 

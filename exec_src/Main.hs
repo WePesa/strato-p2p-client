@@ -18,7 +18,6 @@ import Data.Conduit
 import qualified Data.Conduit.Binary as CB
 import qualified Data.Conduit.List as CL
 import Data.Conduit.Network
-import Data.Conduit.TMChan
 import qualified Data.Text as T
 import Data.Time.Clock
 import qualified Database.Persist.Postgresql as SQL
@@ -65,8 +64,6 @@ import qualified Data.ByteString.Base16 as B16
 import Data.Word
 import Data.Bits
 import Data.Maybe
-
-import Data.Time.Clock.POSIX
 
 coinbasePrvKey::H.PrvKey
 Just coinbasePrvKey = H.makePrvKey 0xac3e8ce2ef31c3f45d5da860bcd9aee4b37a05c5a3ddee40dd061620c3dab380
@@ -160,8 +157,8 @@ handleMsg peerId = do
                yield Status{
                            protocolVersion=fromIntegral ethVersion,
                            networkID=if flags_networkID == -1
-			               then (if flags_testnet then 0 else 1) 
-                                       else flags_networkID,
+                                     then (if flags_testnet then 0 else 1) 
+                                     else flags_networkID,
                            totalDifficulty=0,
                            latestHash=blockHash bestBlock,
                            genesisHash=genesisBlockHash
@@ -339,7 +336,7 @@ runPeer ipAddress thePort otherPubKey myPriv = do
                 "host=localhost dbname=eth user=postgres password=api port=5432" 20
       
         _ <- flip runStateT (Context pool 0 [] dataset [] []) $ do
-          (rs, (outCxt, inCxt)) <-
+          (_, (outCxt, inCxt)) <-
             transPipe liftIO (appSource server) $$+
             ethCryptConnect myPriv otherPubKey `fuseUpstream`
             transPipe liftIO (appSink server)

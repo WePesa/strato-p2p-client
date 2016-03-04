@@ -9,11 +9,11 @@ import Control.Monad.Logger
 import qualified Data.ByteString.Char8 as BC
 import qualified Database.Persist as SQL
 import qualified Database.Persist.Postgresql as SQL
-import qualified Database.Persist.Sql as SQL
+--import qualified Database.Persist.Sql as SQL
 import qualified Database.PostgreSQL.Simple as PS
 import           Database.PostgreSQL.Simple.Notification
 import           Conduit
-import           Data.List.Split
+--import           Data.List.Split
 import           Control.Monad
 
 import Blockchain.Data.RawTransaction
