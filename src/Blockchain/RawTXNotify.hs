@@ -37,7 +37,7 @@ createTXTrigger conn = do
 txNotificationSource'::SQLDB->PS.Connection->Source IO RawTransaction
 txNotificationSource' pool conn = forever $ do
     _ <- liftIO $ PS.execute_ conn "LISTEN new_transaction;"
-    liftIO $ putStrLn $ "about to listen for raw transaction notifications"
+    --liftIO $ putStrLn $ "about to listen for raw transaction notifications"
     rowId <- liftIO $ fmap (SQL.toSqlKey . read . BC.unpack . notificationData) $ getNotification conn
     --liftIO $ putStrLn $ "########### raw transaction has been added: rowId=" ++ show rowId
     maybeTx <- lift $ getTransaction pool rowId
