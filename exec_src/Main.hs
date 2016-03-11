@@ -4,6 +4,7 @@ module Main (
   main
   ) where
 
+import Control.Exception
 import Control.Monad.IO.Class
 import Control.Monad.Logger
 import Control.Monad.State
@@ -47,6 +48,7 @@ import Blockchain.Database.MerklePatricia
 import Blockchain.DB.DetailsDB
 --import Blockchain.DB.ModifyStateDB
 import Blockchain.Display
+import Blockchain.Error
 import Blockchain.Event
 import Blockchain.ExtMergeSources
 import Blockchain.ExtWord
@@ -338,9 +340,12 @@ runPeer ipAddress thePort otherPubKey myPriv = do
             ethCryptConnect myPriv otherPubKey `fuseUpstream`
             transPipe liftIO (appSink server)
 
+          let handleError::SomeException->IO a
+              handleError e = error' (show e)
+
           eventSource <- mergeSourcesCloseForAny [
-            transPipe liftIO (appSource server) =$=
-            ethDecrypt inCxt =$=
+            transPipe (liftIO . flip catch handleError) (appSource server) =$=
+            transPipe (liftIO . flip catch handleError) (ethDecrypt inCxt) =$=
             bytesToMessages =$=
             tap (displayMessage False) =$=
             CL.map MsgEvt,
