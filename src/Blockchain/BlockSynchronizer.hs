@@ -4,7 +4,6 @@ module Blockchain.BlockSynchronizer (
                           addBlocks,
                           handleNewBlockHashes,
                           handleNewBlocks,
-                          removeLoadedHashes,
                           getLowestHashes
                          ) where
 
@@ -34,6 +33,7 @@ import Blockchain.Data.BlockDB
 import Blockchain.Data.DataDefs
 import Blockchain.Data.RLP
 import Blockchain.Data.Wire
+import Blockchain.DB.KafkaTools
 import Blockchain.DB.SQLDB
 import Blockchain.Event
 import Blockchain.Format
@@ -43,33 +43,6 @@ import Blockchain.SHA
 --import Debug.Trace
 
 data GetBlockHashesResult = NeedMore SHA | NeededHashes [SHA] deriving (Show)
-
---Only use for debug purposes, to trick the peer to rerun VM code for a particular block
-{-
-
-import qualified Data.ByteString as B
-import Blockchain.Data.RLP
-import Blockchain.DBM
-
-debug_blockDBGet::HasBlockDB m=>B.ByteString->m (Maybe B.ByteString)
-debug_blockDBGet hash' = do
-  maybeBlockBytes <- blockDBGet hash'
-  case maybeBlockBytes of
-    Nothing -> return Nothing
-    Just blockBytes -> do
-      let theBlock = rlpDecode . rlpDeserialize $ blockBytes
-      if blockDataNumber (blockBlockData theBlock) > 99263
-        then return Nothing
-        else return maybeBlockBytes
--}
-
-
-
-
-
-
--- {-# LANGUAGE OverloadedStrings, FlexibleContexts #-}
-
                 
 addBlocks::[Block]->ContextM ()
 addBlocks blocks = do
@@ -89,34 +62,8 @@ addBlocks blocks = do
 
   liftIO $ putStrLn $ "#### Added " ++ show (length blocks) ++ " blocks, insertion time = " ++ printf "%.4f" (realToFrac $ after - before::Double) ++ "s"
 
-getBlockExists :: (MonadResource m, HasSQLDB m)=>SHA->m Bool
-getBlockExists h = do
-  fmap (not . null) $
-      sqlQuery $
-      E.select $
-         E.from $ \bd -> do
-                     E.where_ (bd E.^. BlockDataRefHash E.==. E.val h)
-                     return $ bd E.^. BlockDataRefHash
-
-removeLoadedHashes :: (MonadResource m, HasSQLDB m)=>m ()
-removeLoadedHashes = do
-  sqlQuery $
-    E.delete $
-      E.from $ \bh -> do
-        E.where_ (bh E.^. NeededBlockHashHash `E.in_` (
-          E.subList_select $
-            E.from $ \bd -> do
-              return (bd E.^. BlockDataRefHash)))
-
-removeHashes :: (MonadResource m, HasSQLDB m)=>[SHA]->m ()
-removeHashes hashes = do
-  sqlQuery $
-    E.delete $
-      E.from $ \bh -> do
-        E.where_ (bh E.^. NeededBlockHashHash `E.in_` E.valList hashes)
-
-removeHashes' :: (MonadResource m, HasSQLDB m)=>E.Key NeededBlockHash->E.Key NeededBlockHash->m ()
-removeHashes' min max = do
+removeHashes :: (MonadResource m, HasSQLDB m)=>E.Key NeededBlockHash->E.Key NeededBlockHash->m ()
+removeHashes min max = do
   sqlQuery $
     E.delete $
       E.from $ \bh -> do
@@ -136,20 +83,10 @@ getLowestHashes n = do
 
   return $ map (\(x, y) -> (E.unValue x, E.unValue y)) res
 
-findFirstHashAlreadyInDB'::[SHA]->ContextM (Maybe SHA)
-findFirstHashAlreadyInDB' hashes =
-  fmap headMay $ filterM getBlockExists hashes
-
 findFirstHashAlreadyInDB::[SHA]->ContextM (Maybe SHA)
 findFirstHashAlreadyInDB hashes = do
   lastBlockHashes <- liftIO getLastBlockHashes
   return $ headMay $ filter (`elem` lastBlockHashes) hashes
-
-fourth4::(a,b,c,d)->d
-fourth4 (_, _, _, x) = x
-
-fifth5::(a,b,c,d,e)->e
-fifth5 (_, _, _, _, x) = x
 
 getLastBlockHashes::IO [SHA]
 getLastBlockHashes = do
@@ -160,9 +97,9 @@ getLastBlockHashes = do
       stateWaitTime .= 100000
       lastOffset <- getLastOffset LatestTime 0 "thetopic"
       let offset = max (lastOffset - 10) 0
-      result <- fetch (Offset $ fromIntegral offset) 0 "thetopic"
-      let qq = concat $ map (map (_kafkaByteString . fromJust . _valueBytes . fifth5 . _messageFields .  _setMessage)) $ map _messageSetMembers $ map fourth4 $ head $ map snd $ _fetchResponseFields result
-      return $ fmap (rlpDecode . rlpDeserialize) qq
+      result <- fetchBytes offset "thetopic"
+
+      return $ fmap (rlpDecode . rlpDeserialize) result
 
   case ret of
     Left e -> error $ show e
@@ -185,13 +122,13 @@ handleNewBlockHashes blockHashes = do
   result <- lift $ findFirstHashAlreadyInDB blockHashes
   case result of
     Nothing -> do
-                --liftIO $ putStrLn "Requesting more block hashes"
-                lift $ addNeededBlockHashes blockHashes
-                yield $ GetBlockHashes (last blockHashes) 0x500
+      --liftIO $ putStrLn "Requesting more block hashes"
+      lift $ addNeededBlockHashes blockHashes
+      yield $ GetBlockHashes (last blockHashes) 0x500
     Just hashInDB -> do
-                liftIO $ putStrLn $ "Found a serverblock already in our database: " ++ format hashInDB
-                lift $ addNeededBlockHashes $ takeWhile (/= hashInDB) blockHashes
-                askForSomeBlocks
+      liftIO $ putStrLn $ "Found a serverblock already in our database: " ++ format hashInDB
+      lift $ addNeededBlockHashes $ takeWhile (/= hashInDB) blockHashes
+      askForSomeBlocks
   
 askForSomeBlocks::Conduit Event ContextM Message
 askForSomeBlocks = do
@@ -237,7 +174,6 @@ handleNewBlocks blocks = do
       liftIO $ putStrLn "removing hashes"
       --liftIO $ putStrLn $ "hashesToDelete: " ++ unlines (map format incomingHashes)
       liftIO $ putStrLn "removing hashes"
-      --lift $ removeHashes incomingHashes
-      lift $ removeHashes' (minimum $ map fst $ take (length incomingHashes) requestedHashes') (maximum $ map fst $ take (length incomingHashes) requestedHashes')
+      lift $ removeHashes (minimum $ map fst $ take (length incomingHashes) requestedHashes') (maximum $ map fst $ take (length incomingHashes) requestedHashes')
       liftIO $ putStrLn "done removing hashes"
       askForSomeBlocks
