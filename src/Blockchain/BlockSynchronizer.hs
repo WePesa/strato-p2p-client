@@ -52,7 +52,7 @@ addBlocks blocks = do
             
   if flags_kafka
     then do
-    putBlocksKafka blocks
+    produceBlocks blocks
     return ()
     else do
     putBlocks blocks False
