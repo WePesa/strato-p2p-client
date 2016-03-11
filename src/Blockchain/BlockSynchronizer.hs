@@ -97,9 +97,7 @@ getLastBlockHashes = do
       stateWaitTime .= 100000
       lastOffset <- getLastOffset LatestTime 0 "thetopic"
       let offset = max (lastOffset - 10) 0
-      result <- fetchBytes offset "thetopic"
-
-      return $ fmap (rlpDecode . rlpDeserialize) result
+      fetchBlocks offset
 
   case ret of
     Left e -> error $ show e
