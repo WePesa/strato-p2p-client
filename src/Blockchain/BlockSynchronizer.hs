@@ -91,7 +91,7 @@ findFirstHashAlreadyInDB hashes = do
 getLastBlockHashes::IO [SHA]
 getLastBlockHashes = do
   ret <-
-    runKafka (mkKafkaState "qqqqkafkaclientidqqqq" ("127.0.0.1", 9092)) $ do
+    runKafka (mkKafkaState "strato-p2p-client" ("127.0.0.1", 9092)) $ do
       stateRequiredAcks .= -1
       stateWaitSize .= 1
       stateWaitTime .= 100000
