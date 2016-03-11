@@ -32,6 +32,7 @@ import Blockchain.UDP hiding (Ping,Pong)
 import Blockchain.RLPx
 
 import Blockchain.BlockSynchronizer
+import qualified Blockchain.Colors as C
 --import Blockchain.Communication
 import Blockchain.Constants
 import Blockchain.Context
@@ -48,6 +49,8 @@ import Blockchain.DB.DetailsDB
 import Blockchain.Display
 import Blockchain.Event
 import Blockchain.ExtMergeSources
+import Blockchain.ExtWord
+import Blockchain.Format
 import Blockchain.PeerUrls
 import Blockchain.RawTXNotify
 import Blockchain.Options
@@ -216,12 +219,9 @@ createTransactions transactions = do
       liftIO $ withSource devURandom $ signTransaction prvKey t{tNonce=n}
 -}
 
-intToBytes::Integer->[Word8]
-intToBytes x = map (fromIntegral . (x `shiftR`)) [256-8, 256-16..0]
-
-pointToBytes::Point->[Word8]
-pointToBytes (Point x y) = intToBytes x ++ intToBytes y
-pointToBytes PointO = error "pointToBytes got value PointO, I don't know what to do here"
+pointToByteString::Point->B.ByteString
+pointToByteString (Point x y) = B.pack $ word256ToBytes (fromInteger x) ++ word256ToBytes (fromInteger y)
+pointToByteString PointO = error "pointToByteString got value PointO, I don't know what to do here"
 
 {-
 doit::Point->ContextM ()
@@ -313,17 +313,15 @@ tap f = do
   
 runPeer::String->PortNumber->Point->PrivateNumber->IO ()
 runPeer ipAddress thePort otherPubKey myPriv = do
-  putStrLn $ "Attempting to connect to " ++ show ipAddress ++ ":" ++ show thePort
+  putStrLn $ C.blue "Welcome to strato-p2p-client"
+  putStrLn $ C.blue "============================"
+  putStrLn $ C.green " * " ++ "Attempting to connect to " ++ C.yellow (ipAddress ++ ":" ++ show thePort)
 
   let myPublic = calculatePublic theCurve myPriv
-  --  putStrLn $ "my pubkey is: " ++ show myPublic
-  putStrLn $ "my pubkey is: " ++ (show $ B16.encode $ B.pack $ pointToBytes myPublic)
-  
-  --  putStrLn $ "my UDP pubkey is: " ++ (show $ H.derivePubKey $ prvKey)
-  putStrLn $ "my NodeID is: " ++ (show $ B16.encode $ B.pack $ pointToBytes $ hPubKeyToPubKey $ H.derivePubKey $ fromMaybe (error "invalid private number in main") $ H.makePrvKey $ fromIntegral myPriv)
+  putStrLn $ C.green " * " ++ "my pubkey is: " ++ C.yellow (take 30 (format $ pointToByteString myPublic) ++ "...")
+  --putStrLn $ "my NodeID is: " ++ (format $ pointToByteString $ hPubKeyToPubKey $ H.derivePubKey $ fromMaybe (error "invalid private number in main") $ H.makePrvKey $ fromIntegral myPriv)
 
-  --  putStrLn $ "server public key is : " ++ (show otherPubKey)
-  putStrLn $ "server public key is : " ++ (show $ B16.encode $ B.pack $ pointToBytes otherPubKey)
+  putStrLn $ C.green " * " ++ "server pubkey is : " ++ C.yellow (take 30 (format $ pointToByteString otherPubKey) ++ "...")
 
   --cch <- mkCache 1024 "seed"
 
@@ -372,7 +370,7 @@ getPubKeyRunPeer ipAddress thePort maybePubKey = do
       eitherOtherPubKey <- getServerPubKey (fromMaybe (error "invalid private number in main") $ H.makePrvKey $ fromIntegral myPriv) ipAddress thePort
       case eitherOtherPubKey of
             Right otherPubKey -> do
-                               putStrLn $ "#### Success, the pubkey has been obtained: " ++ (show $ B16.encode $ B.pack $ pointToBytes otherPubKey)
+                               putStrLn $ "#### Success, the pubkey has been obtained: " ++ (format $ pointToByteString otherPubKey)
                                runPeer ipAddress thePort otherPubKey myPriv
             Left e -> putStrLn $ "Error, couldn't get public key for peer: " ++ show e
     Just otherPubKey -> runPeer ipAddress thePort otherPubKey myPriv
