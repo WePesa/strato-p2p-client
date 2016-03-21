@@ -95,12 +95,14 @@ terminationReasonToNumber OtherSubprotocolReason = 0x10
 
 
 data Message =
+  --p2p wire protocol
   Hello { version::Int, clientId::String, capability::[Capability], port::Int, nodeId::Point } |
   Disconnect TerminationReason |
   Ping |
   Pong |
+
+  --ethereum wire protocol
   Status { protocolVersion::Int, networkID::Int, totalDifficulty::Integer, latestHash::SHA, genesisHash:: SHA } |
-  QqqqStatus Int |
   Transactions [Transaction] | 
   GetBlocks [SHA] |
   Blocks [Block] |
@@ -134,9 +136,6 @@ instance Format Message where
       "    totalDifficulty: " ++ show d ++ "\n" ++
       "    latestHash: " ++ format lh ++ "\n" ++
       "    genesisHash: " ++ format gh
-  format (QqqqStatus ver) =
-    CL.blue "QqqqStatus " ++
-      "    protocolVersion: " ++ show ver
   format (Transactions transactions) =
     CL.blue "Transactions:\n    " ++ tab (intercalate "\n    " (format <$> transactions))
     
@@ -187,8 +186,6 @@ obj2WireMessage 0x10 (RLPArray [ver, nID, d, lh, gh]) =
   latestHash=rlpDecode lh,
   genesisHash=rlpDecode gh
 }
-obj2WireMessage 0x10 (RLPArray [ver]) = 
-    QqqqStatus $ fromInteger $ rlpDecode ver
 
 obj2WireMessage 0x11 (RLPArray items) =
   NewBlockHashes $ map (\(RLPArray [hash, number]) -> (rlpDecode hash, fromInteger $ rlpDecode number)) $ items
@@ -241,7 +238,6 @@ wireMessage2Obj Ping = (0x2, RLPArray [])
 wireMessage2Obj Pong = (0x3, RLPArray [])
 wireMessage2Obj (Status ver nID d lh gh) =
     (0x10, RLPArray [rlpEncode $ toInteger ver, rlpEncode $ toInteger nID, rlpEncode d, rlpEncode lh, rlpEncode gh])
-wireMessage2Obj (QqqqStatus ver) = (0x10, RLPArray [rlpEncode $ toInteger ver])
 wireMessage2Obj (NewBlockHashes items) =
   (0x11, RLPArray ((\(hash, number) -> RLPArray [rlpEncode hash, rlpEncode $ toInteger number]) <$> items))
 wireMessage2Obj (Transactions transactions) = (0x12, RLPArray (rlpEncode <$> transactions))
