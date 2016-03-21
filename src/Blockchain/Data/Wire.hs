@@ -34,10 +34,6 @@ name2Cap ver "eth" = ETH ver
 name2Cap ver "shh" = SHH ver
 name2Cap _ x = error $ "Unknown capability string: " ++ x
 
-{-capValue::Capability->String
-capValue ETH = "eth"
-capValue SHH = "shh"-}
-
 instance RLPSerializable Capability where
     rlpEncode (ETH ver) = RLPArray [rlpEncode ("eth"::B.ByteString), rlpEncode ver]
     rlpEncode (SHH ver) = RLPArray [rlpEncode ("shh"::B.ByteString), rlpEncode ver]
