@@ -87,22 +87,16 @@ library
                  , transformers
                  , ansi-wl-pprint
     exposed-modules: 
---                   Blockchain.BlockChain
                    Blockchain.BlockSynchronizer
---                   Blockchain.Communication
                    Blockchain.Context
                    Blockchain.Data.Peer
---                   Blockchain.Data.TransactionReceipt
                    Blockchain.Data.Wire
                    Blockchain.Display
                    Blockchain.Event
                    Blockchain.ExtMergeSources
---                   Blockchain.JCommand
---                   Blockchain.Mining
                    Blockchain.Options
                    Blockchain.PeerDB
                    Blockchain.RawTXNotify  
---                   Blockchain.SampleTransactions
                    Blockchain.TCPClientWithTimeout
     ghc-options: -Wall -O2
     buildable: True
