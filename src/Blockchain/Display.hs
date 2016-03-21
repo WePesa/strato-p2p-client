@@ -38,7 +38,6 @@ displayMessage outbound (GetBlocks blocks) = do
   liftIO $ putStrLn $ prefix outbound ++ CL.blue "GetBlocks: " ++ "(Requesting " ++ show (length blocks) ++ " blocks)"
 displayMessage outbound (Transactions transactions) = do
   liftIO $ putStrLn $ prefix outbound ++ CL.blue "Transactions: " ++ "(Received " ++ show (length transactions) ++ " transactions)"
-displayMessage _ QqqqPacket = return ()
 displayMessage outbound (BlockHashes shas) = do
   liftIO $ putStrLn $ prefix outbound ++ CL.blue "BlockHashes: " ++ "(" ++ show (length shas) ++ " new hashes)"
   updateStatus

@@ -30,8 +30,8 @@ import Blockchain.Util
 data Capability = ETH Integer | SHH Integer deriving (Show)
 
 name2Cap::Integer->String->Capability
-name2Cap qqqq "eth" = ETH qqqq
-name2Cap qqqq "shh" = SHH qqqq
+name2Cap ver "eth" = ETH ver
+name2Cap ver "shh" = SHH ver
 name2Cap _ x = error $ "Unknown capability string: " ++ x
 
 {-capValue::Capability->String
@@ -39,10 +39,10 @@ capValue ETH = "eth"
 capValue SHH = "shh"-}
 
 instance RLPSerializable Capability where
-    rlpEncode (ETH qqqq) = RLPArray [rlpEncode ("eth"::B.ByteString), rlpEncode qqqq]
-    rlpEncode (SHH qqqq) = RLPArray [rlpEncode ("shh"::B.ByteString), rlpEncode qqqq]
+    rlpEncode (ETH ver) = RLPArray [rlpEncode ("eth"::B.ByteString), rlpEncode ver]
+    rlpEncode (SHH ver) = RLPArray [rlpEncode ("shh"::B.ByteString), rlpEncode ver]
 
-    rlpDecode (RLPArray [name, qqqq]) = name2Cap (rlpDecode qqqq) $ rlpDecode name
+    rlpDecode (RLPArray [name, ver]) = name2Cap (rlpDecode ver) $ rlpDecode name
     rlpDecode x = error $ "wrong format given to rlpDecode for Capability: " ++ show (pretty x)
 
 data TerminationReason =
@@ -111,7 +111,6 @@ data Message =
   NewBlockHashes [(SHA, Int)] |
   NewBlock Block Integer |
   PacketCount Integer |
-  QqqqPacket |
   WhisperProtocolVersion Int deriving (Show)
 
 instance Format Point where
@@ -156,7 +155,6 @@ instance Format Message where
   format (NewBlock block d) = CL.blue "NewBlock" ++ " (" ++ show d ++ ")" ++ tab ("\n" ++ format block)
   format (PacketCount c) =
     CL.blue "PacketCount:" ++ show c
-  format QqqqPacket = CL.blue "QqqqPacket"
   format (NewBlockHashes items) = CL.blue "NewBlockHashes"  ++ tab("\n" ++ intercalate "\n    " ((\(hash, number) -> "(" ++ format hash ++ ", " ++ show number ++ ")") <$> items))
   format (WhisperProtocolVersion ver) = CL.blue "WhisperProtocolVersion " ++ show ver
 
@@ -207,8 +205,6 @@ obj2WireMessage 0x17 (RLPArray [block, td]) =
   NewBlock (rlpDecode block) (rlpDecode td)
 obj2WireMessage 0x18 (RLPArray [c]) =
   PacketCount $ rlpDecode c
-obj2WireMessage 0x19 (RLPArray []) =
-  QqqqPacket
 
 obj2WireMessage 0x20 (RLPArray [ver]) =
   WhisperProtocolVersion $ fromInteger $ rlpDecode ver
@@ -253,8 +249,6 @@ wireMessage2Obj (NewBlock block d) =
   (0x17, RLPArray [rlpEncode block, rlpEncode d])
 wireMessage2Obj (PacketCount c) =
   (0x18, RLPArray [rlpEncode c])
-wireMessage2Obj QqqqPacket =
-  (0x19, RLPArray [])
 
 wireMessage2Obj (WhisperProtocolVersion ver) = 
   (0x20, RLPArray [rlpEncode $ toInteger ver])
