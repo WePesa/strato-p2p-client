@@ -4,10 +4,7 @@ module Blockchain.Options where
 
 import HFlags
 
-defineFlag "altGenBlock" False "use the alternate stablenet genesis block"
 defineFlag "debug" False "turn debug info on or off"
 defineFlag "sqlPeers" False "Choose peers from the SQL DB, not the config file"
-defineFlag "kafka" False "use the Kafka Database instead of SQL to store data"
 defineFlag "testnet" False "connect to testnet"
-defineFlag "wrapTransactions" False "build dummy blocks using new transactions"
 defineFlag "networkID" (-1::Int) "set a custom network ID"

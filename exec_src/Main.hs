@@ -70,80 +70,6 @@ import Data.Word
 import Data.Bits
 import Data.Maybe
 
-coinbasePrvKey::H.PrvKey
-Just coinbasePrvKey = H.makePrvKey 0xac3e8ce2ef31c3f45d5da860bcd9aee4b37a05c5a3ddee40dd061620c3dab380
-
-
-getNextBlock::Block->UTCTime->[Transaction]->ContextM Block
-getNextBlock b ts transactions = do
-  --let theCoinbase = prvKey2Address coinbasePrvKey
-  --setStateDBStateRoot $ blockDataStateRoot bd
-  --success <- addToBalance theCoinbase (1500*finney)
-
-  --when (not success) $ error "coinbase overflow??  This should never happen."
-
-  return Block{
-               blockBlockData=testGetNextBlockData $ SHAPtr "", -- $ stateRoot $ stateDB dbs,
-               blockReceiptTransactions=transactions,
-               blockBlockUncles=[]
-             }
-  where
-    testGetNextBlockData::SHAPtr->BlockData
-    testGetNextBlockData sr =
-      BlockData {
-        blockDataParentHash=blockHash b,
-        blockDataUnclesHash=hash $ B.pack [0xc0],
-        blockDataCoinbase=prvKey2Address coinbasePrvKey,
-        blockDataStateRoot = sr,
-        blockDataTransactionsRoot = emptyTriePtr,
-        blockDataReceiptsRoot = emptyTriePtr,
-        blockDataLogBloom = B.pack [0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],         
-        blockDataDifficulty = nextDifficulty flags_testnet (blockDataNumber bd) (blockDataDifficulty bd) (blockDataTimestamp bd) ts,
-        blockDataNumber = blockDataNumber bd + 1,
-        blockDataGasLimit = blockDataGasLimit bd, -- max 125000 ((blockDataGasLimit bd * 1023 + blockDataGasUsed bd *6 `quot` 5) `quot` 1024),
-        blockDataGasUsed = 0,
-        blockDataTimestamp = ts,  
-        blockDataExtraData = 0,
-        blockDataMixHash = SHA 0,
-        blockDataNonce = 5
-        }
-    bd = blockBlockData b
-
-{-
-submitNextBlock::Integer->Block->EthCryptM ContextM ()
-submitNextBlock baseDifficulty b = do
-        ts <- liftIO getCurrentTime
-        newBlock <- lift $ getNextBlock b ts []
-
-        --let theBytes = headerHashWithoutNonce newBlock `B.append` B.pack (integer2Bytes n)
-        let theNewBlock = newBlock -- addNonceToBlock newBlock n
-        sendMsg $ NewBlockPacket theNewBlock (baseDifficulty + blockDataDifficulty (blockBlockData theNewBlock))
-        lift $ addBlocks False [theNewBlock]
--}
-
-submitNextBlockToDB::Block->[Transaction]->Conduit Event ContextM Message
-submitNextBlockToDB b transactions = do
-  ts <- liftIO getCurrentTime
-  newBlock <- lift $ getNextBlock b ts transactions
-  --n <- liftIO $ fastFindNonce newBlock
-
-  let theNewBlock = newBlock{blockBlockData=(blockBlockData newBlock){blockDataNonce= -1}}
-  lift $ addBlocks [theNewBlock]
-
-submitNewBlock::Block->[Transaction]->Conduit Event ContextM Message
-submitNewBlock b transactions = do
-  --lift $ addTransactions b (blockDataGasLimit $ blockBlockData b) transactions
-  submitNextBlockToDB b transactions
-
-{-
-ifBlockInDBSubmitNextBlock::Integer->Block->EthCryptM ContextM ()
-ifBlockInDBSubmitNextBlock baseDifficulty b = do
-  maybeBlock <- lift $ getBlock (blockHash b)
-  case maybeBlock of
-    Nothing -> return ()
-    _ -> submitNextBlock baseDifficulty b
--}
-
 handleMsg::Point->Conduit Event ContextM Message
 handleMsg peerId = do
   yield $ Hello {
@@ -198,10 +124,7 @@ handleMsg peerId = do
         MsgEvt (GetTransactions _) -> do
                yield $ Transactions []
                --liftIO $ sendMessage handle GetTransactions
-        MsgEvt (Transactions transactions) -> do
-               bestBlock <-lift getBestBlock
-               when flags_wrapTransactions $ submitNewBlock bestBlock transactions
-
+        --MsgEvt (Transactions transactions) -> return ()
         NewTX tx -> do
                when (not $ rawTransactionFromBlock tx) $ do
                    yield $ Transactions [rawTX2TX tx]

@@ -1,7 +1,6 @@
 {-# LANGUAGE OverloadedStrings #-}
 
 module Blockchain.BlockSynchronizer (
-                          addBlocks,
                           handleNewBlockHashes,
                           handleNewBlocks,
                           getLowestHashes
@@ -43,24 +42,6 @@ import Blockchain.SHA
 --import Debug.Trace
 
 data GetBlockHashesResult = NeedMore SHA | NeededHashes [SHA] deriving (Show)
-                
-addBlocks::[Block]->ContextM ()
-addBlocks blocks = do
-  before <- liftIO $ getPOSIXTime
-
-  --when (blockDataNumber (blockBlockData $ head blocks) > 100000) $ error "adding block over 100000"
-            
-  if flags_kafka
-    then do
-    produceBlocks blocks
-    return ()
-    else do
-    putBlocks blocks False
-    return ()
-
-  after <- liftIO $ getPOSIXTime
-
-  liftIO $ putStrLn $ "#### Added " ++ show (length blocks) ++ " blocks, insertion time = " ++ printf "%.4f" (realToFrac $ after - before::Double) ++ "s"
 
 removeHashes :: (MonadResource m, HasSQLDB m)=>E.Key NeededBlockHash->E.Key NeededBlockHash->m ()
 removeHashes min max = do
@@ -147,9 +128,8 @@ handleNewBlocks blocks = do
 
   requestedHashes' <- lift getRequestedHashes
   
-  if (not $ incomingHashes `isPrefixOf` map snd requestedHashes')
-    then error $ "hashes don't match: got\n" ++ unlines (map format incomingHashes) ++ "\nexpected\n" ++ unlines (map (format . snd) requestedHashes')
-    else liftIO $ putStrLn "hashes match"
+  when (not $ incomingHashes `isPrefixOf` map snd requestedHashes') $
+    error $ "hashes don't match: got\n" ++ unlines (map format incomingHashes) ++ "\nexpected\n" ++ unlines (map (format . snd) requestedHashes')
   
   let orderedBlocks =
         sortBy (compare `on` blockDataNumber . blockBlockData) blocks
@@ -166,12 +146,6 @@ handleNewBlocks blocks = do
     --  liftIO $ putStrLn $ CL.red "Warning: a new block has arrived before another block sync is in progress.  This block will be thrown away for now, and re-requested later."
     --(_, Just _) -> do
     (_, _) -> do
-      liftIO $ putStrLn "Submitting new blocks"
-      lift $ addBlocks $ sortBy (compare `on` blockDataNumber . blockBlockData) blocks
-      liftIO $ putStrLn $ show (length blocks) ++ " blocks have been submitted"
-      liftIO $ putStrLn "removing hashes"
-      --liftIO $ putStrLn $ "hashesToDelete: " ++ unlines (map format incomingHashes)
-      liftIO $ putStrLn "removing hashes"
+      lift $ produceBlocks $ sortBy (compare `on` blockDataNumber . blockBlockData) blocks
       lift $ removeHashes (minimum $ map fst $ take (length incomingHashes) requestedHashes') (maximum $ map fst $ take (length incomingHashes) requestedHashes')
-      liftIO $ putStrLn "done removing hashes"
       askForSomeBlocks
