@@ -1,7 +1,5 @@
 
 module Blockchain.Display (
-  addPingCount,
-  setPeers,
   displayMessage
   ) where
 
@@ -19,38 +17,23 @@ setTitle::String->IO()
 setTitle value = do
   putStr $ "\ESC]0;" ++ value ++ "\007"
           
-updateStatus::ContextM ()
+updateStatus::IO ()
 updateStatus = do
-  cxt <- get
-  count <- getHashCount
+--  cxt <- get
+--  count <- getHashCount
+
+  let count = 1
   
-  liftIO $ setTitle $
-    "pingCount = " ++ show (pingCount cxt)
-    ++ ", peer count=" ++ show (length $ peers cxt)
-    ++ ", hashes requested=" ++ show count
-
-addPingCount::ContextM ()
-addPingCount = do
-  cxt <- get
-  put cxt{pingCount = pingCount cxt + 1}
-  updateStatus
-
-setPeers::[Peer]->ContextM ()
-setPeers p = do
-  cxt <- get
-  put cxt{peers = p}
-  updateStatus
+  liftIO $ setTitle $ "hashes requested=" ++ show count
 
 prefix::Bool->String
 prefix True = CL.green "msg>>>>>: "
 prefix False = CL.cyan "msg<<<<: "
        
   
-displayMessage::Bool->Message->ContextM ()
+displayMessage::Bool->Message->IO ()
 displayMessage _ Ping = return ()
 displayMessage _ Pong = return ()
-displayMessage _ GetPeers = return ()
-displayMessage _ (Peers _) = return ()
 displayMessage outbound (GetBlocks blocks) = do
   liftIO $ putStrLn $ prefix outbound ++ CL.blue "GetBlocks: " ++ "(Requesting " ++ show (length blocks) ++ " blocks)"
 displayMessage outbound (Transactions transactions) = do

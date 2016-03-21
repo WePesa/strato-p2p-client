@@ -95,13 +95,7 @@ handleMsg peerId = do
                            genesisHash=genesisBlockHash
                          }
         MsgEvt Ping -> do
-               lift addPingCount
                yield Pong
-        MsgEvt GetPeers -> do
-               yield $ Peers []
-               yield GetPeers
-        MsgEvt (Peers thePeers) -> do
-               lift $ setPeers thePeers
         MsgEvt (BlockHashes blockHashes) -> do
                handleNewBlockHashes blockHashes
         MsgEvt (GetBlocks _) -> do
@@ -109,7 +103,7 @@ handleMsg peerId = do
         MsgEvt (Blocks blocks) -> do
                handleNewBlocks blocks
                --NewBlockPacket block baseDifficulty -> do
-        MsgEvt (NewBlockPacket block _) -> do
+        MsgEvt (NewBlock block _) -> do
                handleNewBlocks [block]
                --ifBlockInDBSubmitNextBlock baseDifficulty block
 
@@ -121,10 +115,7 @@ handleMsg peerId = do
                  [] -> handleNewBlockHashes [lh]
                  [x] -> yield $ GetBlockHashes (snd x) 0x500
                  _ -> error "unexpected multiple values in call to getLowetHashes 1"
-        MsgEvt (GetTransactions _) -> do
-               yield $ Transactions []
-               --liftIO $ sendMessage handle GetTransactions
-        --MsgEvt (Transactions transactions) -> return ()
+        MsgEvt (NewBlockHashes _) -> return ()
         NewTX tx -> do
                when (not $ rawTransactionFromBlock tx) $ do
                    yield $ Transactions [rawTX2TX tx]
@@ -200,14 +191,13 @@ getRLPData = do
                return $ x `B.cons` length' `B.append` rest
     x -> error $ "missing case in getRLPData: " ++ show x 
 
-bytesToMessages::Conduit B.ByteString ContextM Message
-bytesToMessages = do
+bytesToMessages::Conduit B.ByteString IO Message
+bytesToMessages = forever $ do
   msgTypeData <- cbSafeTake 1
   let word = fromInteger (rlpDecode $ rlpDeserialize msgTypeData::Integer)
 
   objBytes <- getRLPData
-  yield $ obj2WireMessage (if word == 128 then 0 else word) $ rlpDeserialize objBytes
-  bytesToMessages
+  yield $ obj2WireMessage word $ rlpDeserialize objBytes
           
 messagesToBytes::Conduit Message ContextM B.ByteString
 messagesToBytes = do
@@ -269,15 +259,15 @@ runPeer ipAddress thePort otherPubKey myPriv = do
           eventSource <- mergeSourcesCloseForAny [
             transPipe (liftIO . flip catch handleError) (appSource server) =$=
             transPipe (liftIO . flip catch handleError) (ethDecrypt inCxt) =$=
-            bytesToMessages =$=
-            tap (displayMessage False) =$=
+            transPipe (liftIO . flip catch handleError) bytesToMessages =$=
+            transPipe (liftIO . flip catch handleError) (tap (displayMessage False)) =$=
             CL.map MsgEvt,
             transPipe liftIO txNotificationSource =$= CL.map NewTX
             ] 2
 
           eventSource =$=
             handleMsg myPublic =$=
-            tap (displayMessage True) =$=
+            transPipe liftIO (tap (displayMessage True)) =$=
             messagesToBytes =$=
             ethEncrypt outCxt $$
             transPipe liftIO (appSink server)

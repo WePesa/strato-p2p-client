@@ -18,7 +18,6 @@ import Text.PrettyPrint.ANSI.Leijen hiding ((<$>))
 
 import qualified Blockchain.Colors as CL
 import Blockchain.Data.BlockDB
-import Blockchain.Data.Peer
 import Blockchain.Data.RLP
 import Blockchain.Data.Transaction
 import Blockchain.ExtWord
@@ -100,8 +99,6 @@ data Message =
   Disconnect TerminationReason |
   Ping |
   Pong |
-  GetPeers |
-  Peers [Peer] |
   Status { protocolVersion::Int, networkID::Int, totalDifficulty::Integer, latestHash::SHA, genesisHash:: SHA } |
   QqqqStatus Int |
   Transactions [Transaction] | 
@@ -109,8 +106,8 @@ data Message =
   Blocks [Block] |
   BlockHashes [SHA] |
   GetBlockHashes { parentSHA::SHA, numChildItems::Integer } |
-  GetTransactions [SHA] |
-  NewBlockPacket Block Integer |
+  NewBlockHashes [(SHA, Int)] |
+  NewBlock Block Integer |
   PacketCount Integer |
   QqqqPacket |
   WhisperProtocolVersion Int deriving (Show)
@@ -130,8 +127,6 @@ instance Format Message where
   format (Disconnect reason) = CL.blue "Disconnect" ++ "(" ++ show reason ++ ")"
   format Ping = CL.blue "Ping"
   format Pong = CL.blue "Pong"
-  format GetPeers = CL.blue "GetPeers"
-  format (Peers peers) = CL.blue "Peers: " ++ intercalate ", " (format <$> peers)
   format Status{ protocolVersion=ver, networkID=nID, totalDifficulty=d, latestHash=lh, genesisHash=gh } =
     CL.blue "Status" ++
       "    protocolVersion: " ++ show ver ++ "\n" ++
@@ -159,11 +154,11 @@ instance Format Message where
   format (Blocks blocks) = CL.blue "Blocks:" ++ tab("\n" ++ intercalate "\n    " (format <$> blocks))
   format (GetBlockHashes hash' numChild) =
     CL.blue "GetBlockHashes" ++ " (max: " ++ show numChild ++ "): " ++ format hash'
-  format (NewBlockPacket block d) = CL.blue "NewBlockPacket" ++ " (" ++ show d ++ ")" ++ tab ("\n" ++ format block)
+  format (NewBlock block d) = CL.blue "NewBlock" ++ " (" ++ show d ++ ")" ++ tab ("\n" ++ format block)
   format (PacketCount c) =
     CL.blue "PacketCount:" ++ show c
   format QqqqPacket = CL.blue "QqqqPacket"
-  format (GetTransactions transactions) = CL.blue "GetTransactions"  ++ tab("\n" ++ intercalate "\n    " (format <$> transactions))
+  format (NewBlockHashes items) = CL.blue "NewBlockHashes"  ++ tab("\n" ++ intercalate "\n    " ((\(hash, number) -> "(" ++ format hash ++ ", " ++ show number ++ ")") <$> items))
   format (WhisperProtocolVersion ver) = CL.blue "WhisperProtocolVersion " ++ show ver
 
 
@@ -184,8 +179,6 @@ obj2WireMessage 0x1 (RLPArray [reason]) =
 obj2WireMessage 0x2 (RLPArray []) = Ping
 obj2WireMessage 0x2 (RLPArray [RLPArray []]) = Ping
 obj2WireMessage 0x3 (RLPArray []) = Pong
-obj2WireMessage 0x4 (RLPArray []) = GetPeers
-obj2WireMessage 0x5 (RLPArray peers) = Peers $ rlpDecode <$> peers
 obj2WireMessage 0x10 (RLPArray [ver, nID, d, lh, gh]) = 
     Status {
   protocolVersion=fromInteger $ rlpDecode ver,
@@ -197,8 +190,8 @@ obj2WireMessage 0x10 (RLPArray [ver, nID, d, lh, gh]) =
 obj2WireMessage 0x10 (RLPArray [ver]) = 
     QqqqStatus $ fromInteger $ rlpDecode ver
 
-obj2WireMessage 0x11 (RLPArray transactions) =
-  GetTransactions $ rlpDecode <$> transactions
+obj2WireMessage 0x11 (RLPArray items) =
+  NewBlockHashes $ map (\(RLPArray [hash, number]) -> (rlpDecode hash, fromInteger $ rlpDecode number)) $ items
 obj2WireMessage 0x12 (RLPArray transactions) =
   Transactions $ rlpDecode <$> transactions
 
@@ -214,7 +207,7 @@ obj2WireMessage 0x15 (RLPArray items) =
 obj2WireMessage 0x16 (RLPArray blocks) =
   Blocks $ rlpDecode <$> blocks
 obj2WireMessage 0x17 (RLPArray [block, td]) =
-  NewBlockPacket (rlpDecode block) (rlpDecode td)
+  NewBlock (rlpDecode block) (rlpDecode td)
 obj2WireMessage 0x18 (RLPArray [c]) =
   PacketCount $ rlpDecode c
 obj2WireMessage 0x19 (RLPArray []) =
@@ -246,12 +239,11 @@ wireMessage2Obj Hello { version = ver,
 wireMessage2Obj (Disconnect reason) = (0x0, RLPArray [rlpEncode $ terminationReasonToNumber reason])
 wireMessage2Obj Ping = (0x2, RLPArray [])
 wireMessage2Obj Pong = (0x3, RLPArray [])
-wireMessage2Obj GetPeers = (0x4, RLPArray [])
-wireMessage2Obj (Peers peers) = (0x5, RLPArray $ (rlpEncode <$> peers))
 wireMessage2Obj (Status ver nID d lh gh) =
     (0x10, RLPArray [rlpEncode $ toInteger ver, rlpEncode $ toInteger nID, rlpEncode d, rlpEncode lh, rlpEncode gh])
 wireMessage2Obj (QqqqStatus ver) = (0x10, RLPArray [rlpEncode $ toInteger ver])
-wireMessage2Obj (GetTransactions transactions) = (0x11, RLPArray (rlpEncode <$> transactions))
+wireMessage2Obj (NewBlockHashes items) =
+  (0x11, RLPArray ((\(hash, number) -> RLPArray [rlpEncode hash, rlpEncode $ toInteger number]) <$> items))
 wireMessage2Obj (Transactions transactions) = (0x12, RLPArray (rlpEncode <$> transactions))
 wireMessage2Obj (GetBlockHashes hash' numChildren) = 
     (0x13, RLPArray [rlpEncode hash', rlpEncode numChildren])
@@ -261,7 +253,7 @@ wireMessage2Obj (GetBlocks shas) =
   (0x15, RLPArray (rlpEncode <$> shas))
 wireMessage2Obj (Blocks blocks) =
   (0x16, RLPArray (rlpEncode <$> blocks))
-wireMessage2Obj (NewBlockPacket block d) =
+wireMessage2Obj (NewBlock block d) =
   (0x17, RLPArray [rlpEncode block, rlpEncode d])
 wireMessage2Obj (PacketCount c) =
   (0x18, RLPArray [rlpEncode c])
