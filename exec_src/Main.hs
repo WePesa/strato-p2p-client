@@ -110,11 +110,12 @@ handleMsg peerId = do
         MsgEvt (Status{latestHash=lh, genesisHash=gh}) -> do
                genesisBlockHash <- lift getGenesisBlockHash
                when (gh /= genesisBlockHash) $ error "Wrong genesis block hash!!!!!!!!"
-               previousLowestHash <- lift $ getLowestHashes 1
+               yield $ GetBlockHeaders (BlockHash genesisBlockHash) 1024 0 Forward
+{-               previousLowestHash <- lift $ getLowestHashes 1
                case previousLowestHash of
                  [] -> handleNewBlockHashes [lh]
                  [x] -> yield $ GetBlockHashes (snd x) 0x500
-                 _ -> error "unexpected multiple values in call to getLowetHashes 1"
+                 _ -> error "unexpected multiple values in call to getLowetHashes 1" -}
         MsgEvt (NewBlockHashes _) -> return ()
         NewTX tx -> do
                when (not $ rawTransactionFromBlock tx) $ do

@@ -4,6 +4,8 @@
 
 module Blockchain.Data.Wire (
   Message(..),
+  BlockHashOrNumber(..),
+  Direction(..),
   Capability(..),
   obj2WireMessage,
   wireMessage2Obj
@@ -18,6 +20,7 @@ import Text.PrettyPrint.ANSI.Leijen hiding ((<$>))
 
 import qualified Blockchain.Colors as CL
 import Blockchain.Data.BlockDB
+import Blockchain.Data.BlockHeader
 import Blockchain.Data.RLP
 import Blockchain.Data.Transaction
 import Blockchain.ExtWord
@@ -88,7 +91,25 @@ terminationReasonToNumber ConnectedToSelf = 0x0a
 terminationReasonToNumber PingTimeout = 0x0b
 terminationReasonToNumber OtherSubprotocolReason = 0x10
   
+data BlockHashOrNumber = BlockHash SHA | BlockNumber Int deriving (Show)
 
+instance Format BlockHashOrNumber where
+  format (BlockHash x) = format x
+  format (BlockNumber x) = "Number: " ++ show x
+
+instance RLPSerializable BlockHashOrNumber where
+  rlpEncode (BlockHash x) = rlpEncode x
+  rlpEncode (BlockNumber x) = rlpEncode $ toInteger x
+  rlpDecode val@(RLPString s) | B.length s == 32 = BlockHash $ rlpDecode val
+  rlpDecode val = BlockNumber $ fromInteger $ rlpDecode val
+
+data Direction = Forward | Reverse deriving (Show)
+
+instance RLPSerializable Direction where
+  rlpEncode Forward = rlpEncode (0::Integer)
+  rlpEncode Reverse = rlpEncode (1::Integer)
+  rlpDecode x | rlpDecode x == (0::Integer) = Forward
+  rlpDecode _ = Reverse
 
 data Message =
   --p2p wire protocol
@@ -98,6 +119,10 @@ data Message =
   Pong |
 
   --ethereum wire protocol
+
+  GetBlockHeaders {block::BlockHashOrNumber, maxHeaders::Int, skip::Int, direction::Direction} |
+  BlockHeaders [BlockHeader] |
+  
   Status { protocolVersion::Int, networkID::Int, totalDifficulty::Integer, latestHash::SHA, genesisHash:: SHA } |
   Transactions [Transaction] | 
   GetBlocks [SHA] |
@@ -131,6 +156,12 @@ instance Format Message where
       "    totalDifficulty: " ++ show d ++ "\n" ++
       "    latestHash: " ++ format lh ++ "\n" ++
       "    genesisHash: " ++ format gh
+  format (GetBlockHeaders b max skip direction) =
+    CL.blue "GetBlockHeaders" ++ " (max: " ++ show max ++ ", " ++ show direction ++ "): "
+    ++ format b
+  format (BlockHeaders headers) = CL.blue "BlockHeaders:"
+                                  ++ tab ("\n" ++ unlines (format <$> headers))
+
   format (Transactions transactions) =
     CL.blue "Transactions:\n    " ++ tab (intercalate "\n    " (format <$> transactions))
     
@@ -189,8 +220,10 @@ obj2WireMessage 0x12 (RLPArray transactions) =
 
 obj2WireMessage 0x13 (RLPArray [hash', num]) =
   GetBlockHashes (rlpDecode hash') (rlpDecode num)
+--obj2WireMessage 0x14 (RLPArray items) =
+--  BlockHashes $ rlpDecode <$> items
 obj2WireMessage 0x14 (RLPArray items) =
-  BlockHashes $ rlpDecode <$> items
+  BlockHeaders $ rlpDecode <$> items
 
 
 obj2WireMessage 0x15 (RLPArray items) =
@@ -230,8 +263,8 @@ wireMessage2Obj Ping = (0x2, RLPArray [])
 wireMessage2Obj Pong = (0x3, RLPArray [])
 wireMessage2Obj (Status ver nID d lh gh) =
     (0x10, RLPArray [rlpEncode $ toInteger ver, rlpEncode $ toInteger nID, rlpEncode d, rlpEncode lh, rlpEncode gh])
-wireMessage2Obj (NewBlockHashes items) =
-  (0x11, RLPArray ((\(hash, number) -> RLPArray [rlpEncode hash, rlpEncode $ toInteger number]) <$> items))
+wireMessage2Obj (GetBlockHeaders b max skip direction) =
+  (0x13, RLPArray [rlpEncode b, rlpEncode $ toInteger max, rlpEncode $ toInteger skip, rlpEncode direction])
 wireMessage2Obj (Transactions transactions) = (0x12, RLPArray (rlpEncode <$> transactions))
 wireMessage2Obj (GetBlockHashes hash' numChildren) = 
     (0x13, RLPArray [rlpEncode hash', rlpEncode numChildren])

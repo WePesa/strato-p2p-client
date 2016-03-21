@@ -8,6 +8,7 @@ import Control.Monad.Trans.State
 
 import qualified Blockchain.Colors as CL
 import Blockchain.Context
+import Blockchain.Data.BlockHeader
 import Blockchain.Data.DataDefs
 import Blockchain.Data.Peer
 import Blockchain.Format
@@ -38,6 +39,11 @@ displayMessage outbound (GetBlocks blocks) = do
   liftIO $ putStrLn $ prefix outbound ++ CL.blue "GetBlocks: " ++ "(Requesting " ++ show (length blocks) ++ " blocks)"
 displayMessage outbound (Transactions transactions) = do
   liftIO $ putStrLn $ prefix outbound ++ CL.blue "Transactions: " ++ "(Received " ++ show (length transactions) ++ " transactions)"
+displayMessage outbound (BlockHeaders []) = do
+  liftIO $ putStrLn $ prefix outbound ++ CL.blue "BlockHeaders: No headers"
+displayMessage outbound (BlockHeaders headers) = do
+  liftIO $ putStrLn $ prefix outbound ++ CL.blue "BlockHeaders: " ++ "(" ++ show (length headers) ++ " new headers ending with #" ++ show (number $ last $ headers) ++ ")"
+  updateStatus
 displayMessage outbound (BlockHashes shas) = do
   liftIO $ putStrLn $ prefix outbound ++ CL.blue "BlockHashes: " ++ "(" ++ show (length shas) ++ " new hashes)"
   updateStatus
