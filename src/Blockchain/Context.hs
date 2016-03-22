@@ -5,6 +5,8 @@ module Blockchain.Context (
   ContextM,
   getDebugMsg,
   addDebugMsg,
+  getBlockHeaders,
+  putBlockHeaders,
   getRequestedHashes,
   setRequestedHashes,
   clearDebugMsg,
@@ -20,8 +22,8 @@ import qualified Data.ByteString as B
 import qualified Database.Esqueleto as E
 import qualified Database.Persist.Postgresql as SQL
 
+import Blockchain.Data.BlockHeader
 import Blockchain.Data.DataDefs
-import Blockchain.Data.Peer
 import Blockchain.DB.SQLDB
 import Blockchain.SHA
 
@@ -30,10 +32,9 @@ import Blockchain.SHA
 data Context =
   Context {
     contextSQLDB::SQLDB,
-    pingCount::Int,
-    peers::[Peer],
     miningDataset::B.ByteString,
     vmTrace::[String],
+    blockHeaders::[BlockHeader],
     requestedHashes::[(E.Key NeededBlockHash, SHA)]
     }
 
@@ -63,6 +64,16 @@ getDebugMsg::ContextM String
 getDebugMsg = do
   cxt <- get
   return $ concat $ reverse $ vmTrace cxt
+
+getBlockHeaders::ContextM [BlockHeader]
+getBlockHeaders = do
+  cxt <- get
+  return $ blockHeaders cxt
+
+putBlockHeaders::[BlockHeader]->ContextM ()
+putBlockHeaders headers = do
+  cxt <- get
+  put cxt{blockHeaders=headers}
 
 addDebugMsg::String->ContextM ()
 addDebugMsg msg = do

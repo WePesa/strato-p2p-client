@@ -98,27 +98,45 @@ handleMsg peerId = do
         MsgEvt Ping -> do
                yield Pong
         MsgEvt (BlockHashes blockHashes) -> do
-               handleNewBlockHashes blockHashes
+               --handleNewBlockHashes blockHashes
+               return ()
         MsgEvt (GetBlocks _) -> do
                yield $ Blocks []
         MsgEvt (Blocks blocks) -> do
-               handleNewBlocks blocks
+               --handleNewBlocks blocks
                --NewBlockPacket block baseDifficulty -> do
+               return ()
         MsgEvt (NewBlock block _) -> do
-               handleNewBlocks [block]
+               --handleNewBlocks [block]
                --ifBlockInDBSubmitNextBlock baseDifficulty block
-
+               return ()
         MsgEvt (Status{latestHash=lh, genesisHash=gh}) -> do
                genesisBlockHash <- lift getGenesisBlockHash
                when (gh /= genesisBlockHash) $ error "Wrong genesis block hash!!!!!!!!"
-               yield $ GetBlockHeaders (BlockHash genesisBlockHash) 1024 0 Forward
+               lastBlockHash <- liftIO $ fmap last getLastBlockHashes
+               yield $ GetBlockHeaders (BlockHash lastBlockHash) 1024 0 Forward
 {-               previousLowestHash <- lift $ getLowestHashes 1
                case previousLowestHash of
                  [] -> handleNewBlockHashes [lh]
                  [x] -> yield $ GetBlockHashes (snd x) 0x500
                  _ -> error "unexpected multiple values in call to getLowetHashes 1" -}
         MsgEvt (BlockHeaders headers) -> do
-               yield $ GetBlockBodies $ map headerHash headers
+               lastBlockHash <- liftIO $ fmap last getLastBlockHashes
+               when (lastBlockHash /= headerHash (head headers)) $ 
+                    error $ "blocks are coming in in the wrong order, got " ++ head (map (format . headerHash) headers) ++ ", expected " ++ format lastBlockHash
+               liftIO $ C.setTitle $ "Block #" ++ show (number $ last headers)
+               lift $ putBlockHeaders $ tail headers
+               yield $ GetBlockBodies $ map headerHash $ tail headers
+        MsgEvt (BlockBodies []) -> return ()
+        MsgEvt (BlockBodies bodies) -> do
+               headers <- lift getBlockHeaders
+               --when (length headers /= length bodies) $ error "not enough bodies returned"
+               produceBlocks $ zipWith createBlockFromHeaderAndBody headers bodies
+               let remainingHeaders = drop (length bodies) headers
+               lift $ putBlockHeaders remainingHeaders
+               if null remainingHeaders
+                 then yield $ GetBlockHeaders (BlockHash $ headerHash $ last headers) 1024 0 Forward
+                 else yield $ GetBlockBodies $ map headerHash remainingHeaders
         MsgEvt (NewBlockHashes _) -> return ()
         NewTX tx -> do
                when (not $ rawTransactionFromBlock tx) $ do
@@ -251,7 +269,7 @@ runPeer ipAddress thePort otherPubKey myPriv = do
         pool <- runNoLoggingT $ SQL.createPostgresqlPool
                 "host=localhost dbname=eth user=postgres password=api port=5432" 20
       
-        _ <- flip runStateT (Context pool 0 [] dataset [] []) $ do
+        _ <- flip runStateT (Context pool dataset [] [] []) $ do
           (_, (outCxt, inCxt)) <-
             transPipe liftIO (appSource server) $$+
             ethCryptConnect myPriv otherPubKey `fuseUpstream`

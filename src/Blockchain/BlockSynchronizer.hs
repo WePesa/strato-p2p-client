@@ -3,6 +3,7 @@
 module Blockchain.BlockSynchronizer (
                           handleNewBlockHashes,
                           handleNewBlocks,
+                          getLastBlockHashes,
                           getLowestHashes
                          ) where
 
@@ -76,7 +77,7 @@ getLastBlockHashes = do
       stateRequiredAcks .= -1
       stateWaitSize .= 1
       stateWaitTime .= 100000
-      lastOffset <- getLastOffset LatestTime 0 "thetopic"
+      lastOffset <- getLastOffset LatestTime 0 "block"
       let offset = max (lastOffset - 10) 0
       fetchBlocks offset
 

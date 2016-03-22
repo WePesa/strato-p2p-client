@@ -14,10 +14,6 @@ import Blockchain.Data.Peer
 import Blockchain.Format
 import Blockchain.Data.Wire
 
-setTitle::String->IO()
-setTitle value = do
-  putStr $ "\ESC]0;" ++ value ++ "\007"
-          
 updateStatus::IO ()
 updateStatus = do
 --  cxt <- get
@@ -25,8 +21,10 @@ updateStatus = do
 
   let count = 1
   
-  liftIO $ setTitle $ "hashes requested=" ++ show count
+  --liftIO $ CL.setTitle $ "hashes requested=" ++ show count
 
+  return ()
+  
 prefix::Bool->String
 prefix True = CL.green "msg>>>>>: "
 prefix False = CL.cyan "msg<<<<: "

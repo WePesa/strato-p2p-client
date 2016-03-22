@@ -165,7 +165,7 @@ instance Format Message where
   format (Transactions transactions) =
     CL.blue "Transactions:\n    " ++ tab (intercalate "\n    " (format <$> transactions))
   format (GetBlockHeaders b max skip direction) =
-    CL.blue "GetBlockHeaders" ++ " (max: " ++ show max ++ ", " ++ show direction ++ "): "
+    CL.blue "GetBlockHeaders" ++ " (max: " ++ show max ++ ", " ++ show direction ++ ", skip " ++ show skip ++ "): "
     ++ format b
   format (BlockHeaders headers) = CL.blue "BlockHeaders:"
                                   ++ tab ("\n" ++ unlines (format <$> headers))
