@@ -44,6 +44,13 @@ displayMessage outbound (BlockHeaders []) = do
 displayMessage outbound (BlockHeaders headers) = do
   liftIO $ putStrLn $ prefix outbound ++ CL.blue "BlockHeaders: " ++ "(" ++ show (length headers) ++ " new headers ending with #" ++ show (number $ last $ headers) ++ ")"
   updateStatus
+displayMessage outbound (BlockBodies bodies) = do
+  let transactionCount = length $ concat $ map fst bodies
+  putStrLn $ prefix outbound ++ CL.blue "BlockBodies: "
+    ++ "(" ++ show (length bodies)
+    ++ " bodies, includes " ++ show transactionCount
+    ++ " transaction" ++ (if transactionCount == 1 then "" else "s") ++ ")"
+  updateStatus
 displayMessage outbound (BlockHashes shas) = do
   liftIO $ putStrLn $ prefix outbound ++ CL.blue "BlockHashes: " ++ "(" ++ show (length shas) ++ " new hashes)"
   updateStatus

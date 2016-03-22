@@ -111,7 +111,7 @@ handleMsg peerId = do
         MsgEvt (Status{latestHash=lh, genesisHash=gh}) -> do
                genesisBlockHash <- lift getGenesisBlockHash
                when (gh /= genesisBlockHash) $ error "Wrong genesis block hash!!!!!!!!"
-               --yield $ GetBlockHeaders (BlockHash genesisBlockHash) 1024 0 Forward
+               yield $ GetBlockHeaders (BlockHash genesisBlockHash) 1024 0 Forward
 {-               previousLowestHash <- lift $ getLowestHashes 1
                case previousLowestHash of
                  [] -> handleNewBlockHashes [lh]

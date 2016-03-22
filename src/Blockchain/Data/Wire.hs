@@ -119,20 +119,22 @@ data Message =
   Pong |
 
   --ethereum wire protocol
-
+  Status { protocolVersion::Int, networkID::Int, totalDifficulty::Integer, latestHash::SHA, genesisHash:: SHA } |
+  NewBlockHashes [(SHA, Int)] |
+  Transactions [Transaction] | 
   GetBlockHeaders {block::BlockHashOrNumber, maxHeaders::Int, skip::Int, direction::Direction} |
   BlockHeaders [BlockHeader] |
   GetBlockBodies [SHA] |
+  BlockBodies [([Transaction], [BlockHeader])] |
+  NewBlock Block Integer |
 
-
-  Status { protocolVersion::Int, networkID::Int, totalDifficulty::Integer, latestHash::SHA, genesisHash:: SHA } |
-  Transactions [Transaction] | 
+  --Obsolete, will soon be removed
+  GetBlockHashes { parentSHA::SHA, numChildItems::Integer } |
+  BlockHashes [SHA] |
   GetBlocks [SHA] |
   Blocks [Block] |
-  BlockHashes [SHA] |
-  GetBlockHashes { parentSHA::SHA, numChildItems::Integer } |
-  NewBlockHashes [(SHA, Int)] |
-  NewBlock Block Integer |
+
+  
   PacketCount Integer |
   WhisperProtocolVersion Int deriving (Show)
 
@@ -151,6 +153,8 @@ instance Format Message where
   format (Disconnect reason) = CL.blue "Disconnect" ++ "(" ++ show reason ++ ")"
   format Ping = CL.blue "Ping"
   format Pong = CL.blue "Pong"
+
+  --ethereum wire protocol
   format Status{ protocolVersion=ver, networkID=nID, totalDifficulty=d, latestHash=lh, genesisHash=gh } =
     CL.blue "Status" ++
       "    protocolVersion: " ++ show ver ++ "\n" ++
@@ -158,6 +162,8 @@ instance Format Message where
       "    totalDifficulty: " ++ show d ++ "\n" ++
       "    latestHash: " ++ format lh ++ "\n" ++
       "    genesisHash: " ++ format gh
+  format (Transactions transactions) =
+    CL.blue "Transactions:\n    " ++ tab (intercalate "\n    " (format <$> transactions))
   format (GetBlockHeaders b max skip direction) =
     CL.blue "GetBlockHeaders" ++ " (max: " ++ show max ++ ", " ++ show direction ++ "): "
     ++ format b
@@ -165,10 +171,16 @@ instance Format Message where
                                   ++ tab ("\n" ++ unlines (format <$> headers))
   format (GetBlockBodies hashes) =
     CL.blue "GetBlockBodies" ++ " (" ++ show (length hashes) ++ " hashes)"
-
-  format (Transactions transactions) =
-    CL.blue "Transactions:\n    " ++ tab (intercalate "\n    " (format <$> transactions))
-    
+  format (BlockBodies bodies) =
+    CL.blue "BlockBodies:"
+    ++ tab ("\n" ++ unlines (formatBody <$> bodies))
+    where
+      formatBody (transactions, uncles) = "BlockBody:" ++ tab (formatTransactions transactions ++ formatUncles uncles)
+      formatTransactions [] = "No transactions, "
+      formatTransactions transactions = "\nTransactions:" ++ tab ("\n" ++ unlines (map format transactions))
+      formatUncles [] = "No uncles"
+      formatUncles uncles = "\nUncles:" ++ tab ("\n" ++ unlines (map format uncles))
+      
 --Short version
   format (BlockHashes shas) =
     CL.blue "BlockHashes " ++ "(" ++ show (length shas) ++ " new hashes)" 
@@ -234,8 +246,10 @@ obj2WireMessage 0x15 (RLPArray hashes) =
 
 obj2WireMessage 0x15 (RLPArray items) =
   GetBlocks $ rlpDecode <$> items
-obj2WireMessage 0x16 (RLPArray blocks) =
-  Blocks $ rlpDecode <$> blocks
+--obj2WireMessage 0x16 (RLPArray blocks) =
+--  Blocks $ rlpDecode <$> blocks
+obj2WireMessage 0x16 (RLPArray bodies) =
+  BlockBodies $ (\(RLPArray [RLPArray transactions, RLPArray uncles]) -> (map rlpDecode transactions, map rlpDecode uncles)) <$> bodies
 obj2WireMessage 0x17 (RLPArray [block, td]) =
   NewBlock (rlpDecode block) (rlpDecode td)
 obj2WireMessage 0x18 (RLPArray [c]) =
