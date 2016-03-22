@@ -39,6 +39,7 @@ import Blockchain.Constants
 import Blockchain.Context
 import Blockchain.Data.Address
 import Blockchain.Data.BlockDB
+import Blockchain.Data.BlockHeader
 import Blockchain.Data.DataDefs
 import Blockchain.Data.RLP
 --import Blockchain.Data.SignedTransaction
@@ -110,12 +111,14 @@ handleMsg peerId = do
         MsgEvt (Status{latestHash=lh, genesisHash=gh}) -> do
                genesisBlockHash <- lift getGenesisBlockHash
                when (gh /= genesisBlockHash) $ error "Wrong genesis block hash!!!!!!!!"
-               yield $ GetBlockHeaders (BlockHash genesisBlockHash) 1024 0 Forward
+               --yield $ GetBlockHeaders (BlockHash genesisBlockHash) 1024 0 Forward
 {-               previousLowestHash <- lift $ getLowestHashes 1
                case previousLowestHash of
                  [] -> handleNewBlockHashes [lh]
                  [x] -> yield $ GetBlockHashes (snd x) 0x500
                  _ -> error "unexpected multiple values in call to getLowetHashes 1" -}
+        MsgEvt (BlockHeaders headers) -> do
+               yield $ GetBlockBodies $ map headerHash headers
         MsgEvt (NewBlockHashes _) -> return ()
         NewTX tx -> do
                when (not $ rawTransactionFromBlock tx) $ do

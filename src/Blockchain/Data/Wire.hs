@@ -122,7 +122,9 @@ data Message =
 
   GetBlockHeaders {block::BlockHashOrNumber, maxHeaders::Int, skip::Int, direction::Direction} |
   BlockHeaders [BlockHeader] |
-  
+  GetBlockBodies [SHA] |
+
+
   Status { protocolVersion::Int, networkID::Int, totalDifficulty::Integer, latestHash::SHA, genesisHash:: SHA } |
   Transactions [Transaction] | 
   GetBlocks [SHA] |
@@ -161,6 +163,8 @@ instance Format Message where
     ++ format b
   format (BlockHeaders headers) = CL.blue "BlockHeaders:"
                                   ++ tab ("\n" ++ unlines (format <$> headers))
+  format (GetBlockBodies hashes) =
+    CL.blue "GetBlockBodies" ++ " (" ++ show (length hashes) ++ " hashes)"
 
   format (Transactions transactions) =
     CL.blue "Transactions:\n    " ++ tab (intercalate "\n    " (format <$> transactions))
@@ -224,6 +228,8 @@ obj2WireMessage 0x13 (RLPArray [hash', num]) =
 --  BlockHashes $ rlpDecode <$> items
 obj2WireMessage 0x14 (RLPArray items) =
   BlockHeaders $ rlpDecode <$> items
+obj2WireMessage 0x15 (RLPArray hashes) =
+  GetBlockBodies $ rlpDecode <$> hashes
 
 
 obj2WireMessage 0x15 (RLPArray items) =
@@ -270,6 +276,8 @@ wireMessage2Obj (GetBlockHashes hash' numChildren) =
     (0x13, RLPArray [rlpEncode hash', rlpEncode numChildren])
 wireMessage2Obj (BlockHashes shas) = 
   (0x14, RLPArray (rlpEncode <$> shas))
+wireMessage2Obj (GetBlockBodies shas) = 
+  (0x15, RLPArray (rlpEncode <$> shas))
 wireMessage2Obj (GetBlocks shas) = 
   (0x15, RLPArray (rlpEncode <$> shas))
 wireMessage2Obj (Blocks blocks) =
