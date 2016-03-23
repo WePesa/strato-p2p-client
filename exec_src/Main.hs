@@ -107,9 +107,9 @@ handleMsg peerId = do
                --NewBlockPacket block baseDifficulty -> do
                return ()
         MsgEvt (NewBlock block _) -> do
-               --handleNewBlocks [block]
-               --ifBlockInDBSubmitNextBlock baseDifficulty block
-               return ()
+               lastBlockHashes <- liftIO $ getLastBlockHashes
+               when (blockDataParentHash (blockBlockData block) `elem` lastBlockHashes) $ do
+                 produceBlocks [block]
         MsgEvt (Status{latestHash=lh, genesisHash=gh}) -> do
                genesisBlockHash <- lift getGenesisBlockHash
                when (gh /= genesisBlockHash) $ error "Wrong genesis block hash!!!!!!!!"
@@ -137,7 +137,11 @@ handleMsg peerId = do
                if null remainingHeaders
                  then yield $ GetBlockHeaders (BlockHash $ headerHash $ last headers) 1024 0 Forward
                  else yield $ GetBlockBodies $ map headerHash remainingHeaders
-        MsgEvt (NewBlockHashes _) -> return ()
+        MsgEvt (NewBlockHashes _) -> do
+               headers <- lift getBlockHeaders
+               when (null headers) $ do
+                 lastBlockHash <- liftIO $ fmap last getLastBlockHashes
+                 yield $ GetBlockHeaders (BlockHash lastBlockHash) 1024 0 Forward
         NewTX tx -> do
                when (not $ rawTransactionFromBlock tx) $ do
                    yield $ Transactions [rawTX2TX tx]
