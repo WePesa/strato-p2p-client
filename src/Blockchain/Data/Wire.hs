@@ -234,8 +234,10 @@ obj2WireMessage 0x12 (RLPArray transactions) =
   Transactions $ rlpDecode <$> transactions
 
 
-obj2WireMessage 0x13 (RLPArray [hash', num]) =
-  GetBlockHashes (rlpDecode hash') (rlpDecode num)
+--obj2WireMessage 0x13 (RLPArray [hash', num]) =
+--  GetBlockHashes (rlpDecode hash') (rlpDecode num)
+obj2WireMessage 0x13 (RLPArray [b, mh, s, d]) =
+  GetBlockHeaders (rlpDecode b) (fromInteger $ rlpDecode mh) (fromInteger $ rlpDecode s) (rlpDecode d)
 --obj2WireMessage 0x14 (RLPArray items) =
 --  BlockHashes $ rlpDecode <$> items
 obj2WireMessage 0x14 (RLPArray items) =
