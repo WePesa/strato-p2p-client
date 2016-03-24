@@ -115,7 +115,7 @@ handleMsg peerId = do
         MsgEvt (BlockHeaders headers) -> do
                lastBlockHashes <- liftIO $ fmap (map blockHash) getLastBlocks
                let allHashes = lastBlockHashes ++ map headerHash headers
-                   neededParentHashes = map parentHash headers
+                   neededParentHashes = map parentHash $ filter ((/= 0) . number) headers
                when (not $ null $ S.fromList neededParentHashes S.\\ S.fromList allHashes) $ 
                     error "incoming blocks don't seem to have existing parents"
                lift $ putBlockHeaders $ tail headers
