@@ -128,14 +128,6 @@ data Message =
   BlockBodies [([Transaction], [BlockHeader])] |
   NewBlock Block Integer |
 
-  --Obsolete, will soon be removed
-  GetBlockHashes { parentSHA::SHA, numChildItems::Integer } |
-  BlockHashes [SHA] |
-  GetBlocks [SHA] |
-  Blocks [Block] |
-
-  
-  PacketCount Integer |
   WhisperProtocolVersion Int deriving (Show)
 
 instance Format Point where
@@ -162,6 +154,8 @@ instance Format Message where
       "    totalDifficulty: " ++ show d ++ "\n" ++
       "    latestHash: " ++ format lh ++ "\n" ++
       "    genesisHash: " ++ format gh
+      
+  format (NewBlockHashes items) = CL.blue "NewBlockHashes"  ++ tab("\n" ++ intercalate "\n    " ((\(hash, number) -> "(" ++ format hash ++ ", " ++ show number ++ ")") <$> items))
   format (Transactions transactions) =
     CL.blue "Transactions:\n    " ++ tab (intercalate "\n    " (format <$> transactions))
   format (GetBlockHeaders b max skip direction) =
@@ -181,24 +175,6 @@ instance Format Message where
       formatUncles [] = "No uncles"
       formatUncles uncles = "\nUncles:" ++ tab ("\n" ++ unlines (map format uncles))
       
---Short version
-  format (BlockHashes shas) =
-    CL.blue "BlockHashes " ++ "(" ++ show (length shas) ++ " new hashes)" 
---Long version
-{-  format (BlockHashes shas) =
-    CL.blue "BlockHashes:" ++  
-   tab ("\n" ++ intercalate "\n    " (show . pretty <$> shas))-}
-
-  format (GetBlocks shas) =
-    CL.blue "GetBlocks:" ++ 
-    tab ("\n" ++ intercalate "\n    " (format <$> shas))
-  format (Blocks blocks) = CL.blue "Blocks:" ++ tab("\n" ++ intercalate "\n    " (format <$> blocks))
-  format (GetBlockHashes hash' numChild) =
-    CL.blue "GetBlockHashes" ++ " (max: " ++ show numChild ++ "): " ++ format hash'
-  format (NewBlock block d) = CL.blue "NewBlock" ++ " (" ++ show d ++ ")" ++ tab ("\n" ++ format block)
-  format (PacketCount c) =
-    CL.blue "PacketCount:" ++ show c
-  format (NewBlockHashes items) = CL.blue "NewBlockHashes"  ++ tab("\n" ++ intercalate "\n    " ((\(hash, number) -> "(" ++ format hash ++ ", " ++ show number ++ ")") <$> items))
   format (WhisperProtocolVersion ver) = CL.blue "WhisperProtocolVersion " ++ show ver
 
 
@@ -233,38 +209,23 @@ obj2WireMessage 0x11 (RLPArray items) =
 obj2WireMessage 0x12 (RLPArray transactions) =
   Transactions $ rlpDecode <$> transactions
 
-
---obj2WireMessage 0x13 (RLPArray [hash', num]) =
---  GetBlockHashes (rlpDecode hash') (rlpDecode num)
 obj2WireMessage 0x13 (RLPArray [b, mh, s, d]) =
   GetBlockHeaders (rlpDecode b) (fromInteger $ rlpDecode mh) (fromInteger $ rlpDecode s) (rlpDecode d)
---obj2WireMessage 0x14 (RLPArray items) =
---  BlockHashes $ rlpDecode <$> items
 obj2WireMessage 0x14 (RLPArray items) =
   BlockHeaders $ rlpDecode <$> items
 obj2WireMessage 0x15 (RLPArray hashes) =
   GetBlockBodies $ rlpDecode <$> hashes
 
 
-obj2WireMessage 0x15 (RLPArray items) =
-  GetBlocks $ rlpDecode <$> items
---obj2WireMessage 0x16 (RLPArray blocks) =
---  Blocks $ rlpDecode <$> blocks
 obj2WireMessage 0x16 (RLPArray bodies) =
   BlockBodies $ (\(RLPArray [RLPArray transactions, RLPArray uncles]) -> (map rlpDecode transactions, map rlpDecode uncles)) <$> bodies
 obj2WireMessage 0x17 (RLPArray [block, td]) =
   NewBlock (rlpDecode block) (rlpDecode td)
-obj2WireMessage 0x18 (RLPArray [c]) =
-  PacketCount $ rlpDecode c
 
 obj2WireMessage 0x20 (RLPArray [ver]) =
   WhisperProtocolVersion $ fromInteger $ rlpDecode ver
 
 obj2WireMessage x y = error ("Missing case in obj2WireMessage: " ++ show x ++ ", " ++ show (pretty y))
-
-
-
-
 
 
 wireMessage2Obj::Message->(Word8, RLPObject)
@@ -288,20 +249,10 @@ wireMessage2Obj (Status ver nID d lh gh) =
 wireMessage2Obj (GetBlockHeaders b max skip direction) =
   (0x13, RLPArray [rlpEncode b, rlpEncode $ toInteger max, rlpEncode $ toInteger skip, rlpEncode direction])
 wireMessage2Obj (Transactions transactions) = (0x12, RLPArray (rlpEncode <$> transactions))
-wireMessage2Obj (GetBlockHashes hash' numChildren) = 
-    (0x13, RLPArray [rlpEncode hash', rlpEncode numChildren])
-wireMessage2Obj (BlockHashes shas) = 
-  (0x14, RLPArray (rlpEncode <$> shas))
 wireMessage2Obj (GetBlockBodies shas) = 
   (0x15, RLPArray (rlpEncode <$> shas))
-wireMessage2Obj (GetBlocks shas) = 
-  (0x15, RLPArray (rlpEncode <$> shas))
-wireMessage2Obj (Blocks blocks) =
-  (0x16, RLPArray (rlpEncode <$> blocks))
 wireMessage2Obj (NewBlock block d) =
   (0x17, RLPArray [rlpEncode block, rlpEncode d])
-wireMessage2Obj (PacketCount c) =
-  (0x18, RLPArray [rlpEncode c])
 
 wireMessage2Obj (WhisperProtocolVersion ver) = 
   (0x20, RLPArray [rlpEncode $ toInteger ver])

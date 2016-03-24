@@ -33,8 +33,6 @@ prefix False = CL.cyan "msg<<<<: "
 displayMessage::Bool->Message->IO ()
 displayMessage _ Ping = return ()
 displayMessage _ Pong = return ()
-displayMessage outbound (GetBlocks blocks) = do
-  liftIO $ putStrLn $ prefix outbound ++ CL.blue "GetBlocks: " ++ "(Requesting " ++ show (length blocks) ++ " blocks)"
 displayMessage outbound (Transactions transactions) = do
   liftIO $ putStrLn $ prefix outbound ++ CL.blue "Transactions: " ++ "(Received " ++ show (length transactions) ++ " transactions)"
 displayMessage outbound (BlockHeaders []) = do
@@ -48,15 +46,6 @@ displayMessage outbound (BlockBodies bodies) = do
     ++ "(" ++ show (length bodies)
     ++ " bodies, includes " ++ show transactionCount
     ++ " transaction" ++ (if transactionCount == 1 then "" else "s") ++ ")"
-  updateStatus
-displayMessage outbound (BlockHashes shas) = do
-  liftIO $ putStrLn $ prefix outbound ++ CL.blue "BlockHashes: " ++ "(" ++ show (length shas) ++ " new hashes)"
-  updateStatus
-displayMessage outbound (Blocks []) = do
-  liftIO $ putStrLn $ prefix outbound ++ CL.blue "Blocks: [no blocks]"
-  updateStatus
-displayMessage outbound (Blocks blocks) = do
-  liftIO $ putStrLn $ prefix outbound ++ CL.blue "Blocks: " ++ "(" ++ show (length blocks) ++ " new blocks, ending with #" ++ show (blockDataNumber $ blockBlockData $ last blocks) ++ ")" --last OK because the [] input was pattern matched above
   updateStatus
 displayMessage outbound msg =
   liftIO $ putStrLn $ (prefix outbound) ++ format msg

@@ -20,7 +20,6 @@ import qualified Data.Conduit.Binary as CB
 import qualified Data.Conduit.List as CL
 import Data.Conduit.Network
 import qualified Data.Text as T
-import Data.Time.Clock
 import qualified Database.Persist.Postgresql as SQL
 import HFlags
 import Network
@@ -37,15 +36,12 @@ import qualified Blockchain.Colors as C
 --import Blockchain.Communication
 import Blockchain.Constants
 import Blockchain.Context
-import Blockchain.Data.Address
 import Blockchain.Data.BlockDB
 import Blockchain.Data.BlockHeader
 import Blockchain.Data.DataDefs
 import Blockchain.Data.RLP
 --import Blockchain.Data.SignedTransaction
-import Blockchain.Data.Transaction
 import Blockchain.Data.Wire
-import Blockchain.Database.MerklePatricia
 import Blockchain.DB.DetailsDB
 --import Blockchain.DB.ModifyStateDB
 import Blockchain.Display
@@ -59,16 +55,10 @@ import Blockchain.RawTXNotify
 import Blockchain.Options
 --import Blockchain.SampleTransactions
 import Blockchain.PeerDB
-import Blockchain.SHA
---import Blockchain.SigningTools
---import Blockchain.Verifier
 import Blockchain.TCPClientWithTimeout
 import Blockchain.Util
-import qualified Data.ByteString.Base16 as B16
 --import Debug.Trace
 
-import Data.Word
-import Data.Bits
 import Data.Maybe
 
 handleMsg::Point->Conduit Event ContextM Message
@@ -97,20 +87,11 @@ handleMsg peerId = do
                          }
         MsgEvt Ping -> do
                yield Pong
-        MsgEvt (BlockHashes blockHashes) -> do
-               --handleNewBlockHashes blockHashes
-               return ()
-        MsgEvt (GetBlocks _) -> do
-               yield $ Blocks []
-        MsgEvt (Blocks blocks) -> do
-               --handleNewBlocks blocks
-               --NewBlockPacket block baseDifficulty -> do
-               return ()
-        MsgEvt (NewBlock block _) -> do
+        MsgEvt (NewBlock block' _) -> do
                lastBlockHashes <- liftIO $ getLastBlockHashes
-               when (blockDataParentHash (blockBlockData block) `elem` lastBlockHashes) $ do
-                 produceBlocks [block]
-        MsgEvt (Status{latestHash=lh, genesisHash=gh}) -> do
+               when (blockDataParentHash (blockBlockData block') `elem` lastBlockHashes) $ do
+                 produceBlocks [block']
+        MsgEvt (Status{latestHash=_, genesisHash=gh}) -> do
                genesisBlockHash <- lift getGenesisBlockHash
                when (gh /= genesisBlockHash) $ error "Wrong genesis block hash!!!!!!!!"
                lastBlockHash <- liftIO $ fmap last getLastBlockHashes
@@ -137,11 +118,6 @@ handleMsg peerId = do
                if null remainingHeaders
                  then yield $ GetBlockHeaders (BlockHash $ headerHash $ last headers) 1024 0 Forward
                  else yield $ GetBlockBodies $ map headerHash remainingHeaders
-        MsgEvt (NewBlockHashes _) -> do
-               headers <- lift getBlockHeaders
-               when (null headers) $ do
-                 lastBlockHash <- liftIO $ fmap last getLastBlockHashes
-                 yield $ GetBlockHeaders (BlockHash lastBlockHash) 1024 0 Forward
         NewTX tx -> do
                when (not $ rawTransactionFromBlock tx) $ do
                    yield $ Transactions [rawTX2TX tx]
@@ -238,12 +214,14 @@ messagesToBytes = do
 theCurve::Curve
 theCurve = getCurveByName SEC_p256k1
 
+{-
 hPubKeyToPubKey::H.PubKey->Point
 hPubKeyToPubKey pubKey = Point (fromIntegral x) (fromIntegral y)
   where
     x = fromMaybe (error "getX failed in prvKey2Address") $ H.getX hPoint
     y = fromMaybe (error "getY failed in prvKey2Address") $ H.getY hPoint
     hPoint = H.pubKeyPoint pubKey
+-}
 
 --This must exist somewhere already
 tap::MonadIO m=>(a->m ())->Conduit a m a
