@@ -91,7 +91,7 @@ terminationReasonToNumber ConnectedToSelf = 0x0a
 terminationReasonToNumber PingTimeout = 0x0b
 terminationReasonToNumber OtherSubprotocolReason = 0x10
   
-data BlockHashOrNumber = BlockHash SHA | BlockNumber Int deriving (Show)
+data BlockHashOrNumber = BlockHash SHA | BlockNumber Integer deriving (Show)
 
 instance Format BlockHashOrNumber where
   format (BlockHash x) = format x
@@ -174,8 +174,10 @@ instance Format Message where
       formatTransactions transactions = "\nTransactions:" ++ tab ("\n" ++ unlines (map format transactions))
       formatUncles [] = "No uncles"
       formatUncles uncles = "\nUncles:" ++ tab ("\n" ++ unlines (map format uncles))
+  format (NewBlock b difficulty) = CL.blue "NewBlock (" ++ show difficulty ++ "):"  ++ tab("\n" ++ format b)
       
   format (WhisperProtocolVersion ver) = CL.blue "WhisperProtocolVersion " ++ show ver
+  format x = error $ "missing value in format for Wire Message: " ++ show x
 
 
 instance RLPSerializable Point where

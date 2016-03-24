@@ -1,7 +1,7 @@
 {-# LANGUAGE OverloadedStrings #-}
 
 module Blockchain.BlockSynchronizer (
-  getLastBlockHashes
+  getLastBlocks
   ) where
 
 import Control.Lens
@@ -12,8 +12,8 @@ import Blockchain.SHA
 
 --import Debug.Trace
 
-getLastBlockHashes::IO [SHA]
-getLastBlockHashes = do
+getLastBlocks::IO [Block]
+getLastBlocks = do
   ret <-
     runKafka (mkKafkaState "strato-p2p-client" ("127.0.0.1", 9092)) $ do
       stateRequiredAcks .= -1
@@ -25,4 +25,5 @@ getLastBlockHashes = do
 
   case ret of
     Left e -> error $ show e
-    Right v -> return $ map blockHash v
+    Right v -> return v
+

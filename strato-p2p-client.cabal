@@ -27,6 +27,7 @@ executable strato-p2p-client
                  , bytestring
                  , conduit
                  , conduit-extra
+                 , containers
                  , crypto-pubkey
                  , crypto-pubkey-types
                  , crypto-random

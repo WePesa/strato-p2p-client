@@ -19,6 +19,7 @@ import Data.Conduit
 import qualified Data.Conduit.Binary as CB
 import qualified Data.Conduit.List as CL
 import Data.Conduit.Network
+import qualified Data.Set as S
 import qualified Data.Text as T
 import qualified Database.Persist.Postgresql as SQL
 import HFlags
@@ -61,6 +62,11 @@ import Blockchain.Util
 
 import Data.Maybe
 
+setTitleAndProduceBlocks::MonadIO m=>[Block]->m ()
+setTitleAndProduceBlocks blocks = do
+  liftIO $ C.setTitle $ "Block #" ++ show (maximum $ map (blockDataNumber . blockBlockData) blocks)
+  produceBlocks blocks
+
 handleMsg::Point->Conduit Event ContextM Message
 handleMsg peerId = do
   yield $ Hello {
@@ -88,31 +94,37 @@ handleMsg peerId = do
         MsgEvt Ping -> do
                yield Pong
         MsgEvt (NewBlock block' _) -> do
-               lastBlockHashes <- liftIO $ getLastBlockHashes
+               lastBlockHashes <- liftIO $ fmap (map blockHash) getLastBlocks
                when (blockDataParentHash (blockBlockData block') `elem` lastBlockHashes) $ do
-                 produceBlocks [block']
+                 setTitleAndProduceBlocks [block']
         MsgEvt (Status{latestHash=_, genesisHash=gh}) -> do
                genesisBlockHash <- lift getGenesisBlockHash
                when (gh /= genesisBlockHash) $ error "Wrong genesis block hash!!!!!!!!"
-               lastBlockHash <- liftIO $ fmap last getLastBlockHashes
-               yield $ GetBlockHeaders (BlockHash lastBlockHash) 1024 0 Forward
+               lastBlockNumber <- liftIO $ fmap (blockDataNumber . blockBlockData . last) getLastBlocks
+               yield $ GetBlockHeaders (BlockNumber lastBlockNumber) 1024 0 Forward
+--               lastBlockHash <- liftIO $ fmap last getLastBlockHashes
+--               yield $ GetBlockHeaders (BlockHash lastBlockHash) 1024 0 Forward
 {-               previousLowestHash <- lift $ getLowestHashes 1
                case previousLowestHash of
                  [] -> handleNewBlockHashes [lh]
                  [x] -> yield $ GetBlockHashes (snd x) 0x500
                  _ -> error "unexpected multiple values in call to getLowetHashes 1" -}
+        MsgEvt (NewBlockHashes hashes) -> do
+               lastBlockNumber <- liftIO $ fmap (blockDataNumber . blockBlockData . last) getLastBlocks
+               yield $ GetBlockHeaders (BlockNumber lastBlockNumber) 1024 0 Forward
         MsgEvt (BlockHeaders headers) -> do
-               lastBlockHash <- liftIO $ fmap last getLastBlockHashes
-               when (lastBlockHash /= headerHash (head headers)) $ 
-                    error $ "blocks are coming in in the wrong order, got " ++ head (map (format . headerHash) headers) ++ ", expected " ++ format lastBlockHash
-               liftIO $ C.setTitle $ "Block #" ++ show (number $ last headers)
+               lastBlockHashes <- liftIO $ fmap (map blockHash) getLastBlocks
+               let allHashes = lastBlockHashes ++ map headerHash headers
+                   neededParentHashes = map parentHash headers
+               when (not $ null $ S.fromList neededParentHashes S.\\ S.fromList allHashes) $ 
+                    error "incoming blocks don't seem to have existing parents"
                lift $ putBlockHeaders $ tail headers
                yield $ GetBlockBodies $ map headerHash $ tail headers
         MsgEvt (BlockBodies []) -> return ()
         MsgEvt (BlockBodies bodies) -> do
                headers <- lift getBlockHeaders
                --when (length headers /= length bodies) $ error "not enough bodies returned"
-               produceBlocks $ zipWith createBlockFromHeaderAndBody headers bodies
+               setTitleAndProduceBlocks $ zipWith createBlockFromHeaderAndBody headers bodies
                let remainingHeaders = drop (length bodies) headers
                lift $ putBlockHeaders remainingHeaders
                if null remainingHeaders
