@@ -7,12 +7,7 @@ module Blockchain.Context (
   addDebugMsg,
   getBlockHeaders,
   putBlockHeaders,
-  getRequestedHashes,
-  setRequestedHashes,
-  clearDebugMsg,
-  addNeededBlockHashes,
-  clearNeededBlockHashes,
-  getHashCount
+  clearDebugMsg
   ) where
 
 
@@ -34,8 +29,7 @@ data Context =
     contextSQLDB::SQLDB,
     miningDataset::B.ByteString,
     vmTrace::[String],
-    blockHeaders::[BlockHeader],
-    requestedHashes::[(E.Key NeededBlockHash, SHA)]
+    blockHeaders::[BlockHeader]
     }
 
 type ContextM = StateT Context (ResourceT IO)
@@ -85,36 +79,3 @@ clearDebugMsg = do
   cxt <- get
   put cxt{vmTrace=[]}
 
-getRequestedHashes::ContextM [(E.Key NeededBlockHash, SHA)]
-getRequestedHashes = do
-  cxt <- get
-  return $ requestedHashes cxt
-
-setRequestedHashes::[(E.Key NeededBlockHash, SHA)]->ContextM ()
-setRequestedHashes hashes = do
-  cxt <- get
-  put cxt{requestedHashes=hashes}
-
-addNeededBlockHashes::[SHA]->ContextM ()
-addNeededBlockHashes blockHashes = do
-  db <- getSQLDB
-  flip SQL.runSqlPool db $
-    forM_ blockHashes $ \blockHash -> SQL.insert $ NeededBlockHash $ blockHash
-
-clearNeededBlockHashes::ContextM ()
-clearNeededBlockHashes = do
-  db <- getSQLDB
-  flip SQL.runSqlPool db $
-    E.delete $ E.from $ \(_::E.SqlExpr (E.Entity NeededBlockHash)) -> return ()
-
-getHashCount::HasSQLDB m=>m Int
-getHashCount = do
-  res <- 
-    sqlQuery $
-      E.select $
-        E.from $ \(_::E.SqlExpr (E.Entity NeededBlockHash)) -> do
-          return E.countRows
-
-  case res of
-    [x] -> return $ E.unValue x
-    _ -> error "wrong format in response from SQL call in getHashCount"
