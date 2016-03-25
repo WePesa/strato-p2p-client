@@ -64,6 +64,7 @@ import Data.Maybe
 
 setTitleAndProduceBlocks::MonadIO m=>[Block]->m ()
 setTitleAndProduceBlocks blocks = do
+  liftIO $ putStrLn $ "Block #" ++ show (maximum $ map (blockDataNumber . blockBlockData) blocks)
   liftIO $ C.setTitle $ "Block #" ++ show (maximum $ map (blockDataNumber . blockBlockData) blocks)
   produceBlocks blocks
 
@@ -100,8 +101,8 @@ handleMsg peerId = do
         MsgEvt (Status{latestHash=_, genesisHash=gh}) -> do
                genesisBlockHash <- lift getGenesisBlockHash
                when (gh /= genesisBlockHash) $ error "Wrong genesis block hash!!!!!!!!"
-               lastBlockNumber <- liftIO $ fmap (blockDataNumber . blockBlockData . last) getLastBlocks
-               yield $ GetBlockHeaders (BlockNumber lastBlockNumber) 1024 0 Forward
+               lastBlockNumber <- liftIO $ fmap (maximum . map (blockDataNumber . blockBlockData)) getLastBlocks
+               yield $ GetBlockHeaders (BlockNumber (max (lastBlockNumber - 10) 0)) 1024 0 Forward
 --               lastBlockHash <- liftIO $ fmap last getLastBlockHashes
 --               yield $ GetBlockHeaders (BlockHash lastBlockHash) 1024 0 Forward
 {-               previousLowestHash <- lift $ getLowestHashes 1
@@ -110,20 +111,28 @@ handleMsg peerId = do
                  [x] -> yield $ GetBlockHashes (snd x) 0x500
                  _ -> error "unexpected multiple values in call to getLowetHashes 1" -}
         MsgEvt (NewBlockHashes hashes) -> do
-               lastBlockNumber <- liftIO $ fmap (blockDataNumber . blockBlockData . last) getLastBlocks
-               yield $ GetBlockHeaders (BlockNumber lastBlockNumber) 1024 0 Forward
+               blockHeaders <- lift getBlockHeaders
+               when (null blockHeaders) $ do
+                 lastBlockNumber <- liftIO $ fmap (blockDataNumber . blockBlockData . last) getLastBlocks
+                 yield $ GetBlockHeaders (BlockNumber lastBlockNumber) 1024 0 Forward
         MsgEvt (BlockHeaders headers) -> do
-               lastBlockHashes <- liftIO $ fmap (map blockHash) getLastBlocks
-               let allHashes = lastBlockHashes ++ map headerHash headers
-                   neededParentHashes = map parentHash $ filter ((/= 0) . number) headers
-               when (not $ null $ S.fromList neededParentHashes S.\\ S.fromList allHashes) $ 
-                    error "incoming blocks don't seem to have existing parents"
-               lift $ putBlockHeaders $ tail headers
-               yield $ GetBlockBodies $ map headerHash $ tail headers
+               alreadyRequestedHeaders <- lift getBlockHeaders
+               when (null alreadyRequestedHeaders) $ do
+                 lastBlocks <- liftIO getLastBlocks
+                 let lastBlockHashes = map blockHash lastBlocks
+                 let allHashes = lastBlockHashes ++ map headerHash headers
+                     neededParentHashes = map parentHash $ filter ((/= 0) . number) headers
+                 when (not $ null $ S.fromList neededParentHashes S.\\ S.fromList allHashes) $ 
+                      error "incoming blocks don't seem to have existing parents"
+                 let neededHeaders = filter (not . (`elem` (map blockHash lastBlocks)) . headerHash) headers
+                 lift $ putBlockHeaders $ tail headers
+                 liftIO $ putStrLn $ "putBlockHeaders called with length " ++ show (length $ tail headers)
+                 yield $ GetBlockBodies $ map headerHash $ tail headers
         MsgEvt (BlockBodies []) -> return ()
         MsgEvt (BlockBodies bodies) -> do
                headers <- lift getBlockHeaders
                --when (length headers /= length bodies) $ error "not enough bodies returned"
+               liftIO $ putStrLn $ "len headers is " ++ show (length headers) ++ ", len bodies is " ++ show (length bodies)
                setTitleAndProduceBlocks $ zipWith createBlockFromHeaderAndBody headers bodies
                let remainingHeaders = drop (length bodies) headers
                lift $ putBlockHeaders remainingHeaders

@@ -20,7 +20,7 @@ getLastBlocks = do
       stateWaitSize .= 1
       stateWaitTime .= 100000
       lastOffset <- getLastOffset LatestTime 0 "block"
-      let offset = max (lastOffset - 10) 0
+      let offset = max (lastOffset - 100) 0
       fetchBlocks offset
 
   case ret of
