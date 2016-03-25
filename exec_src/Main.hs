@@ -66,7 +66,8 @@ setTitleAndProduceBlocks::MonadIO m=>[Block]->m ()
 setTitleAndProduceBlocks blocks = do
   liftIO $ putStrLn $ "Block #" ++ show (maximum $ map (blockDataNumber . blockBlockData) blocks)
   liftIO $ C.setTitle $ "Block #" ++ show (maximum $ map (blockDataNumber . blockBlockData) blocks)
-  produceBlocks blocks
+  offset <- produceBlocks blocks
+  liftIO $ putStrLn $ "Offset = " ++ show offset
 
 handleMsg::Point->Conduit Event ContextM Message
 handleMsg peerId = do
