@@ -5,6 +5,7 @@ module Blockchain.BlockSynchronizer (
   ) where
 
 import Control.Lens
+import Control.Monad
 import Network.Kafka
 
 import Blockchain.Data.BlockDB
@@ -20,6 +21,7 @@ getLastBlocks = do
       stateWaitSize .= 1
       stateWaitTime .= 100000
       lastOffset <- getLastOffset LatestTime 0 "block"
+      when (lastOffset == 0) $ error "Block stream is empty, you need to run strato-setup to insert the genesis block."
       let offset = max (lastOffset - 100) 0
       fetchBlocks offset
 
