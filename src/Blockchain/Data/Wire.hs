@@ -250,6 +250,8 @@ wireMessage2Obj (Status ver nID d lh gh) =
     (0x10, RLPArray [rlpEncode $ toInteger ver, rlpEncode $ toInteger nID, rlpEncode d, rlpEncode lh, rlpEncode gh])
 wireMessage2Obj (GetBlockHeaders b max skip direction) =
   (0x13, RLPArray [rlpEncode b, rlpEncode $ toInteger max, rlpEncode $ toInteger skip, rlpEncode direction])
+wireMessage2Obj (BlockHeaders headers) =
+  (0x14, RLPArray $ map rlpEncode headers)
 wireMessage2Obj (Transactions transactions) = (0x12, RLPArray (rlpEncode <$> transactions))
 wireMessage2Obj (GetBlockBodies shas) = 
   (0x15, RLPArray (rlpEncode <$> shas))
@@ -259,5 +261,6 @@ wireMessage2Obj (NewBlock block d) =
 wireMessage2Obj (WhisperProtocolVersion ver) = 
   (0x20, RLPArray [rlpEncode $ toInteger ver])
 
+wireMessage2Obj x = error $ "Missing case in wireMessage2Obj: " ++ show x
 
 
