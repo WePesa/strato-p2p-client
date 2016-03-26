@@ -39,11 +39,13 @@ import Blockchain.Constants
 import Blockchain.Context
 import Blockchain.Data.BlockDB
 import Blockchain.Data.BlockHeader
+import Blockchain.Data.BlockOffset
 import Blockchain.Data.DataDefs
 import Blockchain.Data.RLP
 --import Blockchain.Data.SignedTransaction
 import Blockchain.Data.Wire
 import Blockchain.DB.DetailsDB
+import Blockchain.DB.SQLDB
 --import Blockchain.DB.ModifyStateDB
 import Blockchain.Display
 import Blockchain.Error
@@ -62,12 +64,14 @@ import Blockchain.Util
 
 import Data.Maybe
 
-setTitleAndProduceBlocks::MonadIO m=>[Block]->m ()
+setTitleAndProduceBlocks::HasSQLDB m=>[Block]->m ()
 setTitleAndProduceBlocks blocks = do
-  liftIO $ putStrLn $ "Block #" ++ show (maximum $ map (blockDataNumber . blockBlockData) blocks)
-  liftIO $ C.setTitle $ "Block #" ++ show (maximum $ map (blockDataNumber . blockBlockData) blocks)
-  offset <- produceBlocks blocks
-  liftIO $ putStrLn $ "Offset = " ++ show offset
+  lastBlockHashes <- liftIO $ fmap (map blockHash) getLastBlocks
+  let newBlocks = filter (not . (`elem` lastBlockHashes) . blockHash) blocks
+  liftIO $ putStrLn $ "Block #" ++ show (maximum $ map (blockDataNumber . blockBlockData) newBlocks)
+  liftIO $ C.setTitle $ "Block #" ++ show (maximum $ map (blockDataNumber . blockBlockData) newBlocks)
+  offset <- produceBlocks newBlocks
+  putBlockOffsets $ map (\(b, o) -> BlockOffset (fromIntegral o) (blockDataNumber $ blockBlockData b) (blockHash b)) $ zip newBlocks [offset..]
 
 handleMsg::Point->Conduit Event ContextM Message
 handleMsg peerId = do
@@ -98,7 +102,7 @@ handleMsg peerId = do
         MsgEvt (NewBlock block' _) -> do
                lastBlockHashes <- liftIO $ fmap (map blockHash) getLastBlocks
                when (blockDataParentHash (blockBlockData block') `elem` lastBlockHashes) $ do
-                 setTitleAndProduceBlocks [block']
+                 lift $ setTitleAndProduceBlocks [block']
         MsgEvt (Status{latestHash=_, genesisHash=gh}) -> do
                genesisBlockHash <- lift getGenesisBlockHash
                when (gh /= genesisBlockHash) $ error "Wrong genesis block hash!!!!!!!!"
@@ -126,15 +130,15 @@ handleMsg peerId = do
                  when (not $ null $ S.fromList neededParentHashes S.\\ S.fromList allHashes) $ 
                       error "incoming blocks don't seem to have existing parents"
                  let neededHeaders = filter (not . (`elem` (map blockHash lastBlocks)) . headerHash) headers
-                 lift $ putBlockHeaders $ tail headers
-                 liftIO $ putStrLn $ "putBlockHeaders called with length " ++ show (length $ tail headers)
-                 yield $ GetBlockBodies $ map headerHash $ tail headers
+                 lift $ putBlockHeaders headers
+                 liftIO $ putStrLn $ "putBlockHeaders called with length " ++ show (length headers)
+                 yield $ GetBlockBodies $ map headerHash headers
         MsgEvt (BlockBodies []) -> return ()
         MsgEvt (BlockBodies bodies) -> do
                headers <- lift getBlockHeaders
                --when (length headers /= length bodies) $ error "not enough bodies returned"
                liftIO $ putStrLn $ "len headers is " ++ show (length headers) ++ ", len bodies is " ++ show (length bodies)
-               setTitleAndProduceBlocks $ zipWith createBlockFromHeaderAndBody headers bodies
+               lift $ setTitleAndProduceBlocks $ zipWith createBlockFromHeaderAndBody headers bodies
                let remainingHeaders = drop (length bodies) headers
                lift $ putBlockHeaders remainingHeaders
                if null remainingHeaders
