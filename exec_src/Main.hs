@@ -76,6 +76,8 @@ setTitleAndProduceBlocks blocks = do
 
   return $ length newBlocks
 
+maxReturnedHeaders=100
+
 handleMsg::Point->Conduit Event ContextM Message
 handleMsg peerId = do
   yield $ Hello {
@@ -111,7 +113,7 @@ handleMsg peerId = do
                genesisBlockHash <- lift getGenesisBlockHash
                when (gh /= genesisBlockHash) $ error "Wrong genesis block hash!!!!!!!!"
                lastBlockNumber <- liftIO $ fmap (maximum . map (blockDataNumber . blockBlockData)) getLastBlocks
-               yield $ GetBlockHeaders (BlockNumber (max (lastBlockNumber - 10) 0)) 1024 0 Forward
+               yield $ GetBlockHeaders (BlockNumber (max (lastBlockNumber - 4) 0)) maxReturnedHeaders 0 Forward
 --               lastBlockHash <- liftIO $ fmap last getLastBlockHashes
 --               yield $ GetBlockHeaders (BlockHash lastBlockHash) 1024 0 Forward
 {-               previousLowestHash <- lift $ getLowestHashes 1
@@ -123,7 +125,7 @@ handleMsg peerId = do
                blockHeaders <- lift getBlockHeaders
                when (null blockHeaders) $ do
                  lastBlockNumber <- liftIO $ fmap (blockDataNumber . blockBlockData . last) getLastBlocks
-                 yield $ GetBlockHeaders (BlockNumber lastBlockNumber) 1024 0 Forward
+                 yield $ GetBlockHeaders (BlockNumber lastBlockNumber) maxReturnedHeaders 0 Forward
         MsgEvt (BlockHeaders headers) -> do
                alreadyRequestedHeaders <- lift getBlockHeaders
                when (null alreadyRequestedHeaders) $ do
@@ -150,7 +152,7 @@ handleMsg peerId = do
                if null remainingHeaders
                  then 
                     if newCount > 0
-                      then yield $ GetBlockHeaders (BlockHash $ headerHash $ last headers) 1024 0 Forward
+                      then yield $ GetBlockHeaders (BlockHash $ headerHash $ last headers) maxReturnedHeaders 0 Forward
                       else return ()
                  else yield $ GetBlockBodies $ map headerHash remainingHeaders
         NewTX tx -> do
