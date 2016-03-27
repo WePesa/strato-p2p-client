@@ -76,6 +76,7 @@ setTitleAndProduceBlocks blocks = do
 
   return $ length newBlocks
 
+maxReturnedHeaders::Int
 maxReturnedHeaders=1000
 
 handleMsg::Point->Conduit Event ContextM Message
@@ -121,9 +122,9 @@ handleMsg peerId = do
                  [] -> handleNewBlockHashes [lh]
                  [x] -> yield $ GetBlockHashes (snd x) 0x500
                  _ -> error "unexpected multiple values in call to getLowetHashes 1" -}
-        MsgEvt (NewBlockHashes hashes) -> do
-               blockHeaders <- lift getBlockHeaders
-               when (null blockHeaders) $ do
+        MsgEvt (NewBlockHashes _) -> do
+               blockHeaders' <- lift getBlockHeaders
+               when (null blockHeaders') $ do
                  lastBlockNumber <- liftIO $ fmap (blockDataNumber . blockBlockData . last) getLastBlocks
                  yield $ GetBlockHeaders (BlockNumber lastBlockNumber) maxReturnedHeaders 0 Forward
         MsgEvt (BlockHeaders headers) -> do

@@ -155,11 +155,11 @@ instance Format Message where
       "    latestHash: " ++ format lh ++ "\n" ++
       "    genesisHash: " ++ format gh
       
-  format (NewBlockHashes items) = CL.blue "NewBlockHashes"  ++ tab("\n" ++ intercalate "\n    " ((\(hash, number) -> "(" ++ format hash ++ ", " ++ show number ++ ")") <$> items))
+  format (NewBlockHashes items) = CL.blue "NewBlockHashes"  ++ tab("\n" ++ intercalate "\n    " ((\(hash', number') -> "(" ++ format hash' ++ ", " ++ show number' ++ ")") <$> items))
   format (Transactions transactions) =
     CL.blue "Transactions:\n    " ++ tab (intercalate "\n    " (format <$> transactions))
-  format (GetBlockHeaders b max skip direction) =
-    CL.blue "GetBlockHeaders" ++ " (max: " ++ show max ++ ", " ++ show direction ++ ", skip " ++ show skip ++ "): "
+  format (GetBlockHeaders b max' skip' direction') =
+    CL.blue "GetBlockHeaders" ++ " (max: " ++ show max' ++ ", " ++ show direction' ++ ", skip " ++ show skip' ++ "): "
     ++ format b
   format (BlockHeaders headers) = CL.blue "BlockHeaders:"
                                   ++ tab ("\n" ++ unlines (format <$> headers))
@@ -174,10 +174,10 @@ instance Format Message where
       formatTransactions transactions = "\nTransactions:" ++ tab ("\n" ++ unlines (map format transactions))
       formatUncles [] = "No uncles"
       formatUncles uncles = "\nUncles:" ++ tab ("\n" ++ unlines (map format uncles))
-  format (NewBlock b difficulty) = CL.blue "NewBlock (" ++ show difficulty ++ "):"  ++ tab("\n" ++ format b)
+  format (NewBlock b d) = CL.blue "NewBlock (" ++ show d ++ "):"  ++ tab("\n" ++ format b)
       
   format (WhisperProtocolVersion ver) = CL.blue "WhisperProtocolVersion " ++ show ver
-  format x = error $ "missing value in format for Wire Message: " ++ show x
+  --format x = error $ "missing value in format for Wire Message: " ++ show x
 
 
 instance RLPSerializable Point where
@@ -207,7 +207,7 @@ obj2WireMessage 0x10 (RLPArray [ver, nID, d, lh, gh]) =
 }
 
 obj2WireMessage 0x11 (RLPArray items) =
-  NewBlockHashes $ map (\(RLPArray [hash, number]) -> (rlpDecode hash, fromInteger $ rlpDecode number)) $ items
+  NewBlockHashes $ map (\(RLPArray [hash', number']) -> (rlpDecode hash', fromInteger $ rlpDecode number')) $ items
 obj2WireMessage 0x12 (RLPArray transactions) =
   Transactions $ rlpDecode <$> transactions
 
@@ -221,8 +221,8 @@ obj2WireMessage 0x15 (RLPArray hashes) =
 
 obj2WireMessage 0x16 (RLPArray bodies) =
   BlockBodies $ (\(RLPArray [RLPArray transactions, RLPArray uncles]) -> (map rlpDecode transactions, map rlpDecode uncles)) <$> bodies
-obj2WireMessage 0x17 (RLPArray [block, td]) =
-  NewBlock (rlpDecode block) (rlpDecode td)
+obj2WireMessage 0x17 (RLPArray [b, td]) =
+  NewBlock (rlpDecode b) (rlpDecode td)
 
 obj2WireMessage 0x20 (RLPArray [ver]) =
   WhisperProtocolVersion $ fromInteger $ rlpDecode ver
@@ -248,8 +248,8 @@ wireMessage2Obj Ping = (0x2, RLPArray [])
 wireMessage2Obj Pong = (0x3, RLPArray [])
 wireMessage2Obj (Status ver nID d lh gh) =
     (0x10, RLPArray [rlpEncode $ toInteger ver, rlpEncode $ toInteger nID, rlpEncode d, rlpEncode lh, rlpEncode gh])
-wireMessage2Obj (GetBlockHeaders b max skip direction) =
-  (0x13, RLPArray [rlpEncode b, rlpEncode $ toInteger max, rlpEncode $ toInteger skip, rlpEncode direction])
+wireMessage2Obj (GetBlockHeaders b max' skip' direction') =
+  (0x13, RLPArray [rlpEncode b, rlpEncode $ toInteger max', rlpEncode $ toInteger skip', rlpEncode direction'])
 wireMessage2Obj (BlockHeaders headers) =
   (0x14, RLPArray $ map rlpEncode headers)
 wireMessage2Obj (Transactions transactions) = (0x12, RLPArray (rlpEncode <$> transactions))
@@ -262,8 +262,8 @@ wireMessage2Obj (BlockBodies bodies) =
     map (\(transactions, uncles) ->
           RLPArray [RLPArray $ map rlpEncode transactions, RLPArray $ map rlpEncode uncles]) bodies
   )
-wireMessage2Obj (NewBlock block d) =
-  (0x17, RLPArray [rlpEncode block, rlpEncode d])
+wireMessage2Obj (NewBlock b d) =
+  (0x17, RLPArray [rlpEncode b, rlpEncode d])
 
 wireMessage2Obj (WhisperProtocolVersion ver) = 
   (0x20, RLPArray [rlpEncode $ toInteger ver])

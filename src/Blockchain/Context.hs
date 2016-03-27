@@ -14,13 +14,9 @@ module Blockchain.Context (
 import Control.Monad.Trans.Resource
 import Control.Monad.State
 import qualified Data.ByteString as B
-import qualified Database.Esqueleto as E
-import qualified Database.Persist.Postgresql as SQL
 
 import Blockchain.Data.BlockHeader
-import Blockchain.Data.DataDefs
 import Blockchain.DB.SQLDB
-import Blockchain.SHA
 
 --import Debug.Trace
 

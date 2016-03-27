@@ -9,7 +9,6 @@ import Control.Monad
 import Network.Kafka
 
 import Blockchain.Data.BlockDB
-import Blockchain.SHA
 
 --import Debug.Trace
 
