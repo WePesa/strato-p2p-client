@@ -255,6 +255,13 @@ wireMessage2Obj (BlockHeaders headers) =
 wireMessage2Obj (Transactions transactions) = (0x12, RLPArray (rlpEncode <$> transactions))
 wireMessage2Obj (GetBlockBodies shas) = 
   (0x15, RLPArray (rlpEncode <$> shas))
+wireMessage2Obj (BlockBodies bodies) = 
+  (
+    0x16,
+    RLPArray $
+    map (\(transactions, uncles) ->
+          RLPArray [RLPArray $ map rlpEncode transactions, RLPArray $ map rlpEncode uncles]) bodies
+  )
 wireMessage2Obj (NewBlock block d) =
   (0x17, RLPArray [rlpEncode block, rlpEncode d])
 
