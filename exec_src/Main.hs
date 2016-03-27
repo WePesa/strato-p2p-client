@@ -76,7 +76,7 @@ setTitleAndProduceBlocks blocks = do
 
   return $ length newBlocks
 
-maxReturnedHeaders=100
+maxReturnedHeaders=1000
 
 handleMsg::Point->Conduit Event ContextM Message
 handleMsg peerId = do
