@@ -139,9 +139,9 @@ handleMsg peerId = do
                  when (not $ null $ S.fromList neededParentHashes S.\\ S.fromList allHashes) $ 
                       error "incoming blocks don't seem to have existing parents"
                  let neededHeaders = filter (not . (`elem` (map blockHash lastBlocks)) . headerHash) headers
-                 lift $ putBlockHeaders headers
-                 liftIO $ putStrLn $ "putBlockHeaders called with length " ++ show (length headers)
-                 yield $ GetBlockBodies $ map headerHash headers
+                 lift $ putBlockHeaders neededHeaders
+                 liftIO $ putStrLn $ "putBlockHeaders called with length " ++ show (length neededHeaders)
+                 yield $ GetBlockBodies $ map headerHash neededHeaders
         MsgEvt (BlockBodies []) -> return ()
         MsgEvt (BlockBodies bodies) -> do
                headers <- lift getBlockHeaders
