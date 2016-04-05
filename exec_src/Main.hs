@@ -43,6 +43,7 @@ import Blockchain.Data.DataDefs
 import Blockchain.Data.RLP
 --import Blockchain.Data.SignedTransaction
 import Blockchain.Data.Wire
+import qualified Blockchain.Database.MerklePatricia as MP
 import Blockchain.DB.DetailsDB
 import Blockchain.DB.SQLDB
 --import Blockchain.DB.ModifyStateDB
@@ -126,6 +127,40 @@ handleMsg peerId = do
                when (null blockHeaders') $ do
                  lastBlockNumber <- liftIO $ fmap (blockDataNumber . blockBlockData . last) $ fetchLastBlocks 100
                  yield $ GetBlockHeaders (BlockNumber lastBlockNumber) maxReturnedHeaders 0 Forward
+
+
+
+        MsgEvt (GetBlockHeaders start max' 0 Forward) -> do
+          blockOffsets <-
+           case start of
+            BlockNumber n -> lift $ fmap (map blockOffsetOffset) $ getBlockOffsetsForNumber $ fromIntegral n
+            BlockHash h -> lift $ getBlockOffsetsForHashes [h]
+         
+          blocks <-
+           case blockOffsets of
+            [] -> return []
+            (blockOffset:_) -> liftIO $ fmap (fromMaybe []) $ fetchBlocksIO $ fromIntegral blockOffset
+                
+          yield $ BlockHeaders $ map blockToBlockHeader  $ take max' $ filter ((/= MP.SHAPtr "") . blockDataStateRoot . blockBlockData) blocks
+          return ()
+
+        MsgEvt (GetBlockBodies hashes) -> do
+          offsets <- lift $ getBlockOffsetsForHashes hashes
+          when (length offsets /= length hashes) $ liftIO $ putStrLn $ "########### Warning: peer is asking for blocks I don't have"
+          maybeBlocks <- 
+           case (isContiguous offsets, offsets) of
+             (True, []) -> return []
+             (True, x:_) ->liftIO $ fmap (map Just . take (length offsets) . fromMaybe []) $ fetchBlocksIO $ fromIntegral x
+             _ -> do
+               liftIO $ putStrLn "############ Warning: Very ineffecient block body query"
+               liftIO $ forM offsets $ fetchBlocksOneIO . fromIntegral
+          let blocks = catMaybes maybeBlocks
+          if (length maybeBlocks == length blocks) 
+            then yield $ BlockBodies $ map blockToBody blocks
+            else liftIO $ putStrLn "Peer is asking for block bodies I don't have, I will just ignore the request"
+
+
+
         MsgEvt (BlockHeaders headers) -> do
                alreadyRequestedHeaders <- lift getBlockHeaders
                when (null alreadyRequestedHeaders) $ do
