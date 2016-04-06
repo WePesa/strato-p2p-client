@@ -71,8 +71,8 @@ setTitleAndProduceBlocks blocks = do
   when (not $ null newBlocks) $ do
     liftIO $ putStrLn $ "Block #" ++ show (maximum $ map (blockDataNumber . blockBlockData) newBlocks)
     liftIO $ C.setTitle $ "Block #" ++ show (maximum $ map (blockDataNumber . blockBlockData) newBlocks)
-    offset <- produceBlocks newBlocks
-    putBlockOffsets $ map (\(b, o) -> BlockOffset (fromIntegral o) (blockDataNumber $ blockBlockData b) (blockHash b)) $ zip newBlocks [offset..]
+    _ <- produceBlocks newBlocks
+    return ()
 
   return $ length newBlocks
 
