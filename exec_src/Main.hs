@@ -170,8 +170,9 @@ handleMsg peerId = do
                  let lastBlockHashes = map blockHash lastBlocks
                  let allHashes = lastBlockHashes ++ map headerHash headers
                      neededParentHashes = map parentHash $ filter ((/= 0) . number) headers
-                 when (not $ null $ S.fromList neededParentHashes S.\\ S.fromList allHashes) $ 
-                      error "incoming blocks don't seem to have existing parents"
+                     unfoundParents = S.fromList neededParentHashes S.\\ S.fromList allHashes
+                 when (not $ S.null unfoundParents) $ 
+                      error $ "incoming blocks don't seem to have existing parents: " ++ unlines (map format $ S.toList unfoundParents)
                  let neededHeaders = filter (not . (`elem` (map blockHash lastBlocks)) . headerHash) headers
                  lift $ putBlockHeaders neededHeaders
                  liftIO $ putStrLn $ "putBlockHeaders called with length " ++ show (length neededHeaders)
