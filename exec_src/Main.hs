@@ -107,9 +107,12 @@ handleMsg peerId = do
                yield Pong
         MsgEvt (NewBlock block' _) -> do
                lastBlockHashes <- liftIO $ fmap (map blockHash) $ fetchLastBlocks 100
-               when (blockDataParentHash (blockBlockData block') `elem` lastBlockHashes) $ do
-                 _ <- lift $ setTitleAndProduceBlocks [block']
-                 return ()
+               if blockDataParentHash (blockBlockData block') `elem` lastBlockHashes
+                 then do
+                   _ <- lift $ setTitleAndProduceBlocks [block']
+                   return ()
+                 else syncFetch
+
         MsgEvt (Status{latestHash=_, genesisHash=gh}) -> do
                genesisBlockHash <- lift getGenesisBlockHash
                when (gh /= genesisBlockHash) $ error "Wrong genesis block hash!!!!!!!!"
@@ -122,13 +125,7 @@ handleMsg peerId = do
                  [] -> handleNewBlockHashes [lh]
                  [x] -> yield $ GetBlockHashes (snd x) 0x500
                  _ -> error "unexpected multiple values in call to getLowetHashes 1" -}
-        MsgEvt (NewBlockHashes _) -> do
-               blockHeaders' <- lift getBlockHeaders
-               when (null blockHeaders') $ do
-                 lastBlockNumber <- liftIO $ fmap (blockDataNumber . blockBlockData . last) $ fetchLastBlocks 100
-                 yield $ GetBlockHeaders (BlockNumber lastBlockNumber) maxReturnedHeaders 0 Forward
-
-
+        MsgEvt (NewBlockHashes _) -> syncFetch
 
         MsgEvt (GetBlockHeaders start max' 0 Forward) -> do
           blockOffsets <-
@@ -195,6 +192,14 @@ handleMsg peerId = do
                    yield $ Transactions [rawTX2TX tx]
            
         _-> return ()
+
+syncFetch::Conduit Event ContextM Message
+syncFetch = do
+  blockHeaders' <- lift getBlockHeaders
+  when (null blockHeaders') $ do
+    lastBlockNumber <- liftIO $ fmap (blockDataNumber . blockBlockData . last) $ fetchLastBlocks 100
+    yield $ GetBlockHeaders (BlockNumber lastBlockNumber) maxReturnedHeaders 0 Forward
+
 
 {-
 createTransaction::Transaction->ContextM SignedTransaction
