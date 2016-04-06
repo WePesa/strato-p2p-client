@@ -21,14 +21,14 @@ import Blockchain.DB.SQLDB
 
 createTXTrigger :: PS.Connection -> IO ()
 createTXTrigger conn = do
-     res2 <- PS.execute_ conn "DROP TRIGGER IF EXISTS tx_notify ON raw_transaction;\n\
-\CREATE OR REPLACE FUNCTION tx_notify() RETURNS TRIGGER AS $tx_notify$ \n\ 
+     res2 <- PS.execute_ conn "DROP TRIGGER IF EXISTS client_tx_notify ON raw_transaction;\n\
+\CREATE OR REPLACE FUNCTION client_tx_notify() RETURNS TRIGGER AS $client_tx_notify$ \n\ 
     \ BEGIN \n\
     \     PERFORM pg_notify('new_transaction', NEW.id::text ); \n\
     \     RETURN NULL; \n\
     \ END; \n\
-\ $tx_notify$ LANGUAGE plpgsql; \n\
-\ CREATE TRIGGER tx_notify AFTER INSERT OR DELETE ON raw_transaction FOR EACH ROW EXECUTE PROCEDURE tx_notify();"
+\ $client_tx_notify$ LANGUAGE plpgsql; \n\
+\ CREATE TRIGGER client_tx_notify AFTER INSERT OR DELETE ON raw_transaction FOR EACH ROW EXECUTE PROCEDURE client_tx_notify();"
 
      putStrLn $ "created trigger with result: " ++ (show res2)
 

@@ -21,14 +21,14 @@ import Blockchain.Data.DataDefs
 
 createBlockTrigger :: PS.Connection -> IO ()
 createBlockTrigger conn = do
-     res2 <- PS.execute_ conn "DROP TRIGGER IF EXISTS block_notify ON block;\n\
-\CREATE OR REPLACE FUNCTION block_notify() RETURNS TRIGGER AS $block_notify$ \n\ 
+     res2 <- PS.execute_ conn "DROP TRIGGER IF EXISTS client_block_notify ON block;\n\
+\CREATE OR REPLACE FUNCTION client_block_notify() RETURNS TRIGGER AS $client_block_notify$ \n\ 
     \ BEGIN \n\
     \     PERFORM pg_notify('new_block', NEW.id::text ); \n\
     \     RETURN NULL; \n\
     \ END; \n\
-\ $block_notify$ LANGUAGE plpgsql; \n\
-\ CREATE TRIGGER block_notify AFTER INSERT OR DELETE ON raw_block FOR EACH ROW EXECUTE PROCEDURE block_notify();"
+\ $client_block_notify$ LANGUAGE plpgsql; \n\
+\ CREATE TRIGGER client_block_notify AFTER INSERT OR DELETE ON block FOR EACH ROW EXECUTE PROCEDURE client_block_notify();"
 
      putStrLn $ "created trigger with result: " ++ (show res2)
 
