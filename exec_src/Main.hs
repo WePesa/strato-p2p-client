@@ -32,6 +32,7 @@ import Blockchain.Frame
 import Blockchain.UDP hiding (Ping,Pong)
 import Blockchain.RLPx
 
+import Blockchain.BlockNotify
 import qualified Blockchain.Colors as C
 --import Blockchain.Communication
 import Blockchain.Constants
@@ -192,6 +193,8 @@ handleMsg peerId = do
         NewTX tx -> do
                when (not $ rawTransactionFromBlock tx) $ do
                    yield $ Transactions [rawTX2TX tx]
+        NewBL b -> do
+               yield $ NewBlockHashes [(blockHash b, fromInteger $ blockDataNumber $ blockBlockData b)]
            
         _-> return ()
 
@@ -345,7 +348,8 @@ runPeer ipAddress thePort otherPubKey myPriv = do
             transPipe (liftIO . flip catch handleError) bytesToMessages =$=
             transPipe (liftIO . flip catch handleError) (tap (displayMessage False)) =$=
             CL.map MsgEvt,
-            transPipe liftIO txNotificationSource =$= CL.map NewTX
+            transPipe liftIO txNotificationSource =$= CL.map NewTX,
+            transPipe liftIO blockNotificationSource =$= CL.map NewBL
             ] 2
 
           eventSource =$=

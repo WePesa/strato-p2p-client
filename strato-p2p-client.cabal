@@ -88,6 +88,7 @@ library
                  , transformers
                  , ansi-wl-pprint
     exposed-modules: 
+                   Blockchain.BlockNotify  
                    Blockchain.Context
                    Blockchain.Data.Peer
                    Blockchain.Data.Wire
