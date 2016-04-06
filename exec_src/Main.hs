@@ -119,7 +119,7 @@ handleMsg peerId = do
                genesisBlockHash <- lift getGenesisBlockHash
                when (gh /= genesisBlockHash) $ error "Wrong genesis block hash!!!!!!!!"
                lastBlockNumber <- liftIO $ fmap (maximum . map (blockDataNumber . blockBlockData)) $ fetchLastBlocks 100
-               yield $ GetBlockHeaders (BlockNumber (max (lastBlockNumber - 4) 0)) maxReturnedHeaders 0 Forward
+               yield $ GetBlockHeaders (BlockNumber (max (lastBlockNumber - flags_syncBacktrackNumber) 0)) maxReturnedHeaders 0 Forward
 --               lastBlockHash <- liftIO $ fmap last getLastBlockHashes
 --               yield $ GetBlockHeaders (BlockHash lastBlockHash) 1024 0 Forward
 {-               previousLowestHash <- lift $ getLowestHashes 1
@@ -163,7 +163,7 @@ handleMsg peerId = do
         MsgEvt (BlockHeaders headers) -> do
                alreadyRequestedHeaders <- lift getBlockHeaders
                when (null alreadyRequestedHeaders) $ do
-                 lastBlocks <- liftIO $ fetchLastBlocks 1000
+                 lastBlocks <- liftIO $ fetchLastBlocks 100
                  --liftIO $ putStrLn $ unlines $ map format lastBlocks
                  --liftIO $ putStrLn $ unlines $ map format headers
                  let lastBlockHashes = map blockHash lastBlocks
