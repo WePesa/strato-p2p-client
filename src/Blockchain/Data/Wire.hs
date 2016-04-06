@@ -248,6 +248,8 @@ wireMessage2Obj Ping = (0x2, RLPArray [])
 wireMessage2Obj Pong = (0x3, RLPArray [])
 wireMessage2Obj (Status ver nID d lh gh) =
     (0x10, RLPArray [rlpEncode $ toInteger ver, rlpEncode $ toInteger nID, rlpEncode d, rlpEncode lh, rlpEncode gh])
+wireMessage2Obj (NewBlockHashes items) =
+  (0x11, RLPArray $ map (\(b, n) -> RLPArray [rlpEncode b, rlpEncode $ toInteger n]) items)
 wireMessage2Obj (GetBlockHeaders b max' skip' direction') =
   (0x13, RLPArray [rlpEncode b, rlpEncode $ toInteger max', rlpEncode $ toInteger skip', rlpEncode direction'])
 wireMessage2Obj (BlockHeaders headers) =
