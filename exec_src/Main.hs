@@ -111,7 +111,9 @@ handleMsg peerId = do
                  then do
                    _ <- lift $ setTitleAndProduceBlocks [block']
                    return ()
-                 else syncFetch
+                 else do
+                   liftIO $ putStrLn "#### New block is missing its parent, I am resyncing"
+                   syncFetch
 
         MsgEvt (Status{latestHash=_, genesisHash=gh}) -> do
                genesisBlockHash <- lift getGenesisBlockHash
