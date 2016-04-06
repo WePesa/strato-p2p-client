@@ -163,7 +163,7 @@ handleMsg peerId = do
         MsgEvt (BlockHeaders headers) -> do
                alreadyRequestedHeaders <- lift getBlockHeaders
                when (null alreadyRequestedHeaders) $ do
-                 lastBlocks <- liftIO $ fetchLastBlocks 100
+                 lastBlocks <- liftIO $ fetchLastBlocks 1000
                  --liftIO $ putStrLn $ unlines $ map format lastBlocks
                  --liftIO $ putStrLn $ unlines $ map format headers
                  let lastBlockHashes = map blockHash lastBlocks
