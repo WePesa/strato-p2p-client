@@ -270,6 +270,6 @@ wireMessage2Obj (NewBlock b d) =
 wireMessage2Obj (WhisperProtocolVersion ver) = 
   (0x20, RLPArray [rlpEncode $ toInteger ver])
 
-wireMessage2Obj x = error $ "Missing case in wireMessage2Obj: " ++ show x
+--wireMessage2Obj x = error $ "Missing case in wireMessage2Obj: " ++ show x
 
 
