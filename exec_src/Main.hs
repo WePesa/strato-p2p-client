@@ -66,7 +66,7 @@ import Blockchain.Util
 import Data.Maybe
 
 
-fetchLimit = 200
+fetchLimit = 50
 
 setTitleAndProduceBlocks::HasSQLDB m=>[Block]->m Int
 setTitleAndProduceBlocks blocks = do
@@ -138,20 +138,23 @@ handleMsg peerId = do
            case start of
             BlockNumber n -> lift $ fmap (map blockOffsetOffset) $ getBlockOffsetsForNumber $ fromIntegral n
             BlockHash h -> lift $ getBlockOffsetsForHashes [h]
+
+          liftIO $ putStrLn $ "blockOffsets: " ++ show blockOffsets
          
           blocks <-
            case blockOffsets of
             [] -> return []
             (blockOffset:_) -> liftIO $ fmap (fromMaybe []) $ fetchBlocksIO $ fromIntegral blockOffset
+
+          liftIO $ putStrLn $ "&&&&&&&&&& blocks: " ++ unlines (map format blocks)
                 
           yield $ BlockHeaders $ map blockToBlockHeader  $ take max' $ filter ((/= MP.SHAPtr "") . blockDataStateRoot . blockBlockData) blocks
           return ()
 
         MsgEvt (GetBlockBodies hashes) -> do
           offsets <- lift $ getBlockOffsetsForHashes hashes
-          when (length offsets /= length hashes) $ do
-             liftIO $ putStrLn $ "########### Warning: peer is asking for blocks I don't have: " ++ unlines (map format hashes)
-             liftIO $ putStrLn $ "########### My block offsets: " ++ unlines (map show offsets)
+          when (length offsets /= length hashes) $ 
+             error $ "########### Warning: peer is asking for blocks I don't have: " ++ unlines (map format hashes) ++ "\n########### My block offsets: " ++ unlines (map show offsets)
 
  
           maybeBlocks <- 
@@ -179,7 +182,7 @@ handleMsg peerId = do
                      neededParentHashes = map parentHash $ filter ((/= 0) . number) headers
                      unfoundParents = S.fromList neededParentHashes S.\\ S.fromList allHashes
                  when (not $ S.null unfoundParents) $ 
-                      liftIO $ putStrLn $ "incoming blocks don't seem to have existing parents: " ++ unlines (map format $ S.toList unfoundParents) ++ "\n" ++ "New Blocks: " ++ unlines (map format headers)
+                      error $ "incoming blocks don't seem to have existing parents: " ++ unlines (map format $ S.toList unfoundParents) ++ "\n" ++ "New Blocks: " ++ unlines (map format headers)
                  let neededHeaders = filter (not . (`elem` (map blockHash lastBlocks)) . headerHash) headers
                  lift $ putBlockHeaders neededHeaders
                  liftIO $ putStrLn $ "putBlockHeaders called with length " ++ show (length neededHeaders)
