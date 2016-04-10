@@ -65,9 +65,12 @@ import Blockchain.Util
 
 import Data.Maybe
 
+
+fetchLimit = 200
+
 setTitleAndProduceBlocks::HasSQLDB m=>[Block]->m Int
 setTitleAndProduceBlocks blocks = do
-  lastBlockHashes <- liftIO $ fmap (map blockHash) $ fetchLastBlocks 100
+  lastBlockHashes <- liftIO $ fmap (map blockHash) $ fetchLastBlocks 200
   let newBlocks = filter (not . (`elem` lastBlockHashes) . blockHash) blocks
   when (not $ null newBlocks) $ do
     liftIO $ putStrLn $ "Block #" ++ show (maximum $ map (blockDataNumber . blockBlockData) newBlocks)
@@ -107,7 +110,7 @@ handleMsg peerId = do
         MsgEvt Ping -> do
                yield Pong
         MsgEvt (NewBlock block' _) -> do
-               lastBlockHashes <- liftIO $ fmap (map blockHash) $ fetchLastBlocks 100
+               lastBlockHashes <- liftIO $ fmap (map blockHash) $ fetchLastBlocks fetchLimit
                if blockDataParentHash (blockBlockData block') `elem` lastBlockHashes
                  then do
                    _ <- lift $ setTitleAndProduceBlocks [block']
@@ -119,7 +122,7 @@ handleMsg peerId = do
         MsgEvt (Status{latestHash=_, genesisHash=gh}) -> do
                genesisBlockHash <- lift getGenesisBlockHash
                when (gh /= genesisBlockHash) $ error "Wrong genesis block hash!!!!!!!!"
-               lastBlockNumber <- liftIO $ fmap (maximum . map (blockDataNumber . blockBlockData)) $ fetchLastBlocks 100
+               lastBlockNumber <- liftIO $ fmap (maximum . map (blockDataNumber . blockBlockData)) $ fetchLastBlocks fetchLimit
                yield $ GetBlockHeaders (BlockNumber (max (lastBlockNumber - flags_syncBacktrackNumber) 0)) maxReturnedHeaders 0 Forward
 --               lastBlockHash <- liftIO $ fmap last getLastBlockHashes
 --               yield $ GetBlockHeaders (BlockHash lastBlockHash) 1024 0 Forward
@@ -164,7 +167,7 @@ handleMsg peerId = do
         MsgEvt (BlockHeaders headers) -> do
                alreadyRequestedHeaders <- lift getBlockHeaders
                when (null alreadyRequestedHeaders) $ do
-                 lastBlocks <- liftIO $ fetchLastBlocks 100
+                 lastBlocks <- liftIO $ fetchLastBlocks fetchLimit
                  --liftIO $ putStrLn $ unlines $ map format lastBlocks
                  --liftIO $ putStrLn $ unlines $ map format headers
                  let lastBlockHashes = map blockHash lastBlocks
@@ -203,7 +206,7 @@ syncFetch::Conduit Event ContextM Message
 syncFetch = do
   blockHeaders' <- lift getBlockHeaders
   when (null blockHeaders') $ do
-    lastBlockNumber <- liftIO $ fmap (blockDataNumber . blockBlockData . last) $ fetchLastBlocks 100
+    lastBlockNumber <- liftIO $ fmap (blockDataNumber . blockBlockData . last) $ fetchLastBlocks fetchLimit
     yield $ GetBlockHeaders (BlockNumber lastBlockNumber) maxReturnedHeaders 0 Forward
 
 
