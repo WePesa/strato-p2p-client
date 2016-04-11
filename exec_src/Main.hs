@@ -137,7 +137,7 @@ handleMsg peerId = do
           blockOffsets <-
            case start of
             BlockNumber n -> lift $ fmap (map blockOffsetOffset) $ getBlockOffsetsForNumber $ fromIntegral n
-            BlockHash h -> lift $ getBlockOffsetsForHashes [h]
+            BlockHash h -> lift $ getOffsetsForHashes [h]
 
           liftIO $ putStrLn $ "blockOffsets: " ++ show blockOffsets
          
@@ -147,12 +147,16 @@ handleMsg peerId = do
             (blockOffset:_) -> liftIO $ fmap (fromMaybe []) $ fetchBlocksIO $ fromIntegral blockOffset
 
           liftIO $ putStrLn $ "&&&&&&&&&& blocks: " ++ unlines (map format blocks)
+
+          let blocksWithHashes = map (\b -> (blockHash b, b)) blocks
+          existingHashes <- lift $ fmap (map blockOffsetHash) $ getBlockOffsetsForHashes $ map fst blocksWithHashes
+          let existingBlocks = map snd $ filter ((`elem` existingHashes) . fst) blocksWithHashes
                 
-          yield $ BlockHeaders $ map blockToBlockHeader  $ take max' $ filter ((/= MP.SHAPtr "") . blockDataStateRoot . blockBlockData) blocks
+          yield $ BlockHeaders $ map blockToBlockHeader  $ take max' $ filter ((/= MP.SHAPtr "") . blockDataStateRoot . blockBlockData) existingBlocks
           return ()
 
         MsgEvt (GetBlockBodies hashes) -> do
-          offsets <- lift $ getBlockOffsetsForHashes hashes
+          offsets <- lift $ getOffsetsForHashes hashes
           when (length offsets /= length hashes) $ 
              error $ "########### Warning: peer is asking for blocks I don't have: " ++ unlines (map format hashes) ++ "\n########### My block offsets: " ++ unlines (map show offsets)
 
