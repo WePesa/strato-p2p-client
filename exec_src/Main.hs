@@ -348,7 +348,7 @@ runPeer ipAddress thePort otherPubKey myPriv = do
         pool <- runNoLoggingT $ SQL.createPostgresqlPool
                 "host=localhost dbname=eth user=postgres password=api port=5432" 20
       
-        _ <- flip runStateT (Context pool dataset [] []) $ do
+        _ <- flip runStateT (Context pool dataset [] [] Nothing) $ do
           (_, (outCxt, inCxt)) <-
             transPipe liftIO (appSource server) $$+
             ethCryptConnect myPriv otherPubKey `fuseUpstream`
