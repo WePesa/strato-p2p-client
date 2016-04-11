@@ -176,9 +176,6 @@ handleMsg peerId = do
 
 
         MsgEvt (BlockHeaders headers) -> do
-               when (null headers) $ do
-                 [theLastBlock] <- liftIO $ fetchLastBlocks 1
-                 lift $ setSynced $ blockDataNumber $ blockBlockData theLastBlock
                alreadyRequestedHeaders <- lift getBlockHeaders
                when (null alreadyRequestedHeaders) $ do
                  lastBlocks <- liftIO $ fetchLastBlocks fetchLimit
@@ -191,6 +188,10 @@ handleMsg peerId = do
                  when (not $ S.null unfoundParents) $ 
                       error $ "incoming blocks don't seem to have existing parents: " ++ unlines (map format $ S.toList unfoundParents) ++ "\n" ++ "New Blocks: " ++ unlines (map format headers)
                  let neededHeaders = filter (not . (`elem` (map blockHash lastBlocks)) . headerHash) headers
+                 when (null neededHeaders) $ do
+                   [theLastBlock] <- liftIO $ fetchLastBlocks 1
+                   lift $ setSynced $ blockDataNumber $ blockBlockData theLastBlock
+
                  lift $ putBlockHeaders neededHeaders
                  liftIO $ putStrLn $ "putBlockHeaders called with length " ++ show (length neededHeaders)
                  yield $ GetBlockBodies $ map headerHash neededHeaders
