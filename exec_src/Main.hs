@@ -176,6 +176,9 @@ handleMsg peerId = do
 
 
         MsgEvt (BlockHeaders headers) -> do
+               when (null headers) $ do
+                 [theLastBlock] <- liftIO $ fetchLastBlocks 1
+                 lift $ setSynced $ blockDataNumber $ blockBlockData theLastBlock
                alreadyRequestedHeaders <- lift getBlockHeaders
                when (null alreadyRequestedHeaders) $ do
                  lastBlocks <- liftIO $ fetchLastBlocks fetchLimit
@@ -209,7 +212,12 @@ handleMsg peerId = do
                when (not $ rawTransactionFromBlock tx) $ do
                    yield $ Transactions [rawTX2TX tx]
         NewBL b -> do
-               yield $ NewBlockHashes [(blockHash b, fromInteger $ blockDataNumber $ blockBlockData b)]
+               maybeSynced <- lift getSyncedBlock
+               case maybeSynced of
+                 Nothing -> return ()
+                 Just syncNumber -> 
+                   when (blockDataNumber (blockBlockData b) >= syncNumber) $
+                     yield $ NewBlockHashes [(blockHash b, fromInteger $ blockDataNumber $ blockBlockData b)]
            
         _-> return ()
 

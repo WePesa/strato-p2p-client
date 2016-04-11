@@ -7,8 +7,8 @@ module Blockchain.Context (
   addDebugMsg,
   getBlockHeaders,
   putBlockHeaders,
-  syncedBlock,
-  setIsSynced,
+  getSyncedBlock,
+  setSynced,
   clearDebugMsg
   ) where
 
@@ -68,13 +68,13 @@ putBlockHeaders headers = do
   cxt <- get
   put cxt{blockHeaders=headers}
 
-syncedBlock::ContextM (Maybe Integer)
-syncedBlock = do
+getSyncedBlock::ContextM (Maybe Integer)
+getSyncedBlock = do
   cxt <- get
   return $ contextSynced cxt
 
-setIsSynced::Integer->ContextM ()
-setIsSynced number = do
+setSynced::Integer->ContextM ()
+setSynced number = do
   cxt <- get
   put cxt{contextSynced=Just number}
 
