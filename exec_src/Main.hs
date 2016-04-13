@@ -41,6 +41,7 @@ import Blockchain.Data.BlockDB
 import Blockchain.Data.BlockHeader
 import Blockchain.Data.BlockOffset
 import Blockchain.Data.DataDefs
+import Blockchain.Data.NewBlk
 import Blockchain.Data.RLP
 --import Blockchain.Data.SignedTransaction
 import Blockchain.Data.Wire
@@ -110,6 +111,7 @@ handleMsg peerId = do
         MsgEvt Ping -> do
                yield Pong
         MsgEvt (NewBlock block' _) -> do
+               lift $ putNewBlk $ blockToNewBlk block'
                lastBlockHashes <- liftIO $ fmap (map blockHash) $ fetchLastBlocks fetchLimit
                if blockDataParentHash (blockBlockData block') `elem` lastBlockHashes
                  then do
