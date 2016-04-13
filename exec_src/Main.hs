@@ -214,13 +214,7 @@ handleMsg peerId = do
         NewTX tx -> do
                when (not $ rawTransactionFromBlock tx) $ do
                    yield $ Transactions [rawTX2TX tx]
-        NewBL b -> do
-               maybeSynced <- lift getSyncedBlock
-               case maybeSynced of
-                 Nothing -> return ()
-                 Just syncNumber -> 
-                   when (blockDataNumber (blockBlockData b) >= syncNumber) $
-                     yield $ NewBlockHashes [(blockHash b, fromInteger $ blockDataNumber $ blockBlockData b)]
+        NewBL b -> yield $ NewBlock b 0
            
         _-> return ()
 
