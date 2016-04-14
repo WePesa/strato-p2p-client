@@ -19,6 +19,7 @@ import Data.Conduit
 import qualified Data.Conduit.Binary as CB
 import qualified Data.Conduit.List as CL
 import Data.Conduit.Network
+import Data.List
 import qualified Data.Set as S
 import qualified Data.Text as T
 import qualified Database.Persist.Postgresql as SQL
@@ -154,7 +155,7 @@ handleMsg peerId = do
           existingHashes <- lift $ fmap (map blockOffsetHash) $ getBlockOffsetsForHashes $ map fst blocksWithHashes
           let existingBlocks = map snd $ filter ((`elem` existingHashes) . fst) blocksWithHashes
                 
-          yield $ BlockHeaders $ map blockToBlockHeader  $ take max' $ filter ((/= MP.SHAPtr "") . blockDataStateRoot . blockBlockData) existingBlocks
+          yield $ BlockHeaders $ nub $ map blockToBlockHeader  $ take max' $ filter ((/= MP.SHAPtr "") . blockDataStateRoot . blockBlockData) existingBlocks
           return ()
 
         MsgEvt (GetBlockBodies hashes) -> do
@@ -196,7 +197,9 @@ handleMsg peerId = do
 
                  lift $ putBlockHeaders neededHeaders
                  liftIO $ putStrLn $ "putBlockHeaders called with length " ++ show (length neededHeaders)
-                 yield $ GetBlockBodies $ map headerHash neededHeaders
+                 let neededHashes = map headerHash neededHeaders
+                 --when (length neededHeaders /= length (S.toList $ S.fromList neededHashes)) $ error "duplicates in neededHeaders"
+                 yield $ GetBlockBodies neededHashes
         MsgEvt (BlockBodies []) -> return ()
         MsgEvt (BlockBodies bodies) -> do
                headers <- lift getBlockHeaders
