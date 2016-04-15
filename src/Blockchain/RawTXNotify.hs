@@ -18,6 +18,7 @@ import           Control.Monad
 
 import Blockchain.Data.RawTransaction
 import Blockchain.DB.SQLDB
+import Blockchain.EthConf
 
 createTXTrigger :: PS.Connection -> IO ()
 createTXTrigger conn = do
@@ -45,15 +46,13 @@ txNotificationSource' pool conn = forever $ do
      Nothing -> error "wow, item was removed in notificationSource before I could get it....  This didn't seem like a likely occurence when I was programming, you should probably deal with this possibility now"
      Just tx -> yield tx
 
-connStr'::SQL.ConnectionString
-connStr' = BC.pack $ "host=localhost dbname=eth user=postgres password=api port=5432"
-
 txNotificationSource::Source IO RawTransaction
 txNotificationSource = do
 
   conn <- liftIO $ PS.connect PS.defaultConnectInfo {
-            PS.connectPassword = "api",
-            PS.connectDatabase = "eth"
+            PS.connectUser = user . sqlConfig $ ethConf,
+            PS.connectPassword = password . sqlConfig $ ethConf,
+            PS.connectDatabase = database . sqlConfig $ ethConf
            }
 
   pool <- liftIO $ runNoLoggingT $ SQL.createPostgresqlPool connStr' 20

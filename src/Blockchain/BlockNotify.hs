@@ -23,6 +23,7 @@ import Blockchain.Data.DataDefs
 import Blockchain.Data.NewBlk
 import Blockchain.ExtWord
 import Blockchain.SHA
+import Blockchain.EthConf
 
 createBlockTrigger :: PS.Connection -> IO ()
 createBlockTrigger conn = do
@@ -64,15 +65,13 @@ getNewBlk' pool h = do
 
   return $ fmap SQL.entityVal res
 
-connStr'::SQL.ConnectionString
-connStr' = BC.pack $ "host=localhost dbname=eth user=postgres password=api port=5432"
-
 blockNotificationSource::Source IO Block
 blockNotificationSource = do
 
   conn <- liftIO $ PS.connect PS.defaultConnectInfo {
-            PS.connectPassword = "api",
-            PS.connectDatabase = "eth"
+            PS.connectUser = user . sqlConfig $ ethConf,
+            PS.connectPassword = password . sqlConfig $ ethConf,
+            PS.connectDatabase = database . sqlConfig $ ethConf
            }
 
   pool <- liftIO $ runNoLoggingT $ SQL.createPostgresqlPool connStr' 20

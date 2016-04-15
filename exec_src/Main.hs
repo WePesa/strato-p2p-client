@@ -62,6 +62,7 @@ import Blockchain.Options
 import Blockchain.PeerDB
 import Blockchain.TCPClientWithTimeout
 import Blockchain.Util
+import Blockchain.EthConf hiding (genesisHash,port)
 --import Debug.Trace
 
 import Data.Maybe
@@ -357,7 +358,7 @@ runPeer ipAddress thePort otherPubKey myPriv = do
   runTCPClientWithConnectTimeout (clientSettings (fromIntegral thePort) $ BC.pack ipAddress) 5 $ \server -> 
       runResourceT $ do
         pool <- runNoLoggingT $ SQL.createPostgresqlPool
-                "host=localhost dbname=eth user=postgres password=api port=5432" 20
+                connStr' 20
       
         _ <- flip runStateT (Context pool dataset [] [] Nothing) $ do
           (_, (outCxt, inCxt)) <-
