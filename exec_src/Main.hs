@@ -56,10 +56,11 @@ import Blockchain.Event
 import Blockchain.ExtMergeSources
 import Blockchain.ExtWord
 import Blockchain.Format
+import Blockchain.Options
 import Blockchain.PeerUrls
 import Blockchain.RawTXNotify
-import Blockchain.Options
 --import Blockchain.SampleTransactions
+import Blockchain.SHA
 import Blockchain.PeerDB
 import Blockchain.TCPClientWithTimeout
 import Blockchain.Util
@@ -83,6 +84,12 @@ setTitleAndProduceBlocks blocks = do
     return ()
 
   return $ length newBlocks
+
+filterRequestedBlocks::[SHA]->[Block]->[Block]
+filterRequestedBlocks _ [] = []
+filterRequestedBlocks [] _ = []
+filterRequestedBlocks (h:hRest) (b:bRest) | blockHash b == h = b:filterRequestedBlocks hRest bRest
+filterRequestedBlocks hashes (_:bRest) = filterRequestedBlocks hashes bRest
 
 maxReturnedHeaders::Int
 maxReturnedHeaders=1000
@@ -160,25 +167,15 @@ handleMsg peerId = do
           yield $ BlockHeaders $ nub $ map blockToBlockHeader  $ take max' $ filter ((/= MP.SHAPtr "") . blockDataStateRoot . blockBlockData) existingBlocks
           return ()
 
-        MsgEvt (GetBlockBodies hashes) -> do
-          offsets <- lift $ getOffsetsForHashes hashes
-          when (length offsets /= length hashes) $ 
-             error $ "########### Warning: peer is asking for blocks I don't have: " ++ unlines (map format hashes) ++ "\n########### My block offsets: " ++ unlines (map show offsets)
-
- 
-          maybeBlocks <- 
-           case (isContiguous offsets, offsets) of
-             (True, []) -> return []
-             (True, x:_) ->liftIO $ fmap (map Just . take (length offsets) . fromMaybe []) $ fetchBlocksIO $ fromIntegral x
-             _ -> do
-               liftIO $ putStrLn "############ Warning: Very inefficient block body query"
-               liftIO $ forM offsets $ fetchBlocksOneIO . fromIntegral
-          let blocks = catMaybes maybeBlocks
-          if (length maybeBlocks == length blocks) 
-            then yield $ BlockBodies $ map blockToBody blocks
-            else liftIO $ putStrLn "Peer is asking for block bodies I don't have, I will just ignore the request"
-
-
+        MsgEvt (GetBlockBodies []) -> yield $ BlockBodies []
+        MsgEvt (GetBlockBodies headers@(first:rest)) -> do
+          offsets <- lift $ getOffsetsForHashes [first]
+          case offsets of
+            [] -> error $ "########### Warning: peer is asking for a block I don't have: " ++ format first
+            (o:_) -> do
+              blocks <- liftIO $ fmap (error "Internal error: an offset in SQL points to a value ouside of the block stream.") $ fetchBlocksIO $ fromIntegral o
+              let requestedBlocks = filterRequestedBlocks headers blocks
+              yield $ BlockBodies $ map blockToBody requestedBlocks
 
         MsgEvt (BlockHeaders headers) -> do
                alreadyRequestedHeaders <- lift getBlockHeaders
