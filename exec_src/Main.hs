@@ -63,6 +63,8 @@ import Blockchain.Options
 import Blockchain.PeerDB
 import Blockchain.TCPClientWithTimeout
 import Blockchain.Util
+import Blockchain.Verification
+
 --import Debug.Trace
 
 import Data.Maybe
@@ -203,6 +205,8 @@ handleMsg peerId = do
         MsgEvt (BlockBodies []) -> return ()
         MsgEvt (BlockBodies bodies) -> do
                headers <- lift getBlockHeaders
+               let verified = and $ zipWith (\h b -> transactionsRoot h == transactionsVerificationValue (fst b)) headers bodies
+               when (not verified) $ error "headers don't match bodies"
                --when (length headers /= length bodies) $ error "not enough bodies returned"
                liftIO $ putStrLn $ "len headers is " ++ show (length headers) ++ ", len bodies is " ++ show (length bodies)
                newCount <- lift $ setTitleAndProduceBlocks $ zipWith createBlockFromHeaderAndBody headers bodies
