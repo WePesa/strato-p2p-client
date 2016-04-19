@@ -169,7 +169,7 @@ handleMsg peerId = do
              (True, []) -> return []
              (True, x:_) ->liftIO $ fmap (map Just . take (length offsets) . fromMaybe []) $ fetchBlocksIO $ fromIntegral x
              _ -> do
-               liftIO $ putStrLn "############ Warning: Very ineffecient block body query"
+               liftIO $ putStrLn "############ Warning: Very inefficient block body query"
                liftIO $ forM offsets $ fetchBlocksOneIO . fromIntegral
           let blocks = catMaybes maybeBlocks
           if (length maybeBlocks == length blocks) 
