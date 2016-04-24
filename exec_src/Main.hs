@@ -19,6 +19,7 @@ import Data.Conduit
 import qualified Data.Conduit.Binary as CB
 import qualified Data.Conduit.List as CL
 import Data.Conduit.Network
+import Data.List
 import qualified Data.Set as S
 import qualified Data.Text as T
 import qualified Database.Persist.Postgresql as SQL
@@ -55,14 +56,18 @@ import Blockchain.Event
 import Blockchain.ExtMergeSources
 import Blockchain.ExtWord
 import Blockchain.Format
+import Blockchain.Options
 import Blockchain.PeerUrls
 import Blockchain.RawTXNotify
-import Blockchain.Options
 --import Blockchain.SampleTransactions
+import Blockchain.SHA
 import Blockchain.PeerDB
 import Blockchain.TCPClientWithTimeout
 import Blockchain.Util
+
 import Blockchain.EthConf hiding (genesisHash,port)
+import Blockchain.Verification
+
 --import Debug.Trace
 
 import Data.Maybe
@@ -81,6 +86,12 @@ setTitleAndProduceBlocks blocks = do
     return ()
 
   return $ length newBlocks
+
+filterRequestedBlocks::[SHA]->[Block]->[Block]
+filterRequestedBlocks _ [] = []
+filterRequestedBlocks [] _ = []
+filterRequestedBlocks (h:hRest) (b:bRest) | blockHash b == h = b:filterRequestedBlocks hRest bRest
+filterRequestedBlocks hashes (_:bRest) = filterRequestedBlocks hashes bRest
 
 maxReturnedHeaders::Int
 maxReturnedHeaders=1000
@@ -155,28 +166,18 @@ handleMsg peerId = do
           existingHashes <- lift $ fmap (map blockOffsetHash) $ getBlockOffsetsForHashes $ map fst blocksWithHashes
           let existingBlocks = map snd $ filter ((`elem` existingHashes) . fst) blocksWithHashes
                 
-          yield $ BlockHeaders $ map blockToBlockHeader  $ take max' $ filter ((/= MP.SHAPtr "") . blockDataStateRoot . blockBlockData) existingBlocks
+          yield $ BlockHeaders $ nub $ map blockToBlockHeader  $ take max' $ filter ((/= MP.SHAPtr "") . blockDataStateRoot . blockBlockData) existingBlocks
           return ()
 
-        MsgEvt (GetBlockBodies hashes) -> do
-          offsets <- lift $ getOffsetsForHashes hashes
-          when (length offsets /= length hashes) $ 
-             error $ "########### Warning: peer is asking for blocks I don't have: " ++ unlines (map format hashes) ++ "\n########### My block offsets: " ++ unlines (map show offsets)
-
- 
-          maybeBlocks <- 
-           case (isContiguous offsets, offsets) of
-             (True, []) -> return []
-             (True, x:_) ->liftIO $ fmap (map Just . take (length offsets) . fromMaybe []) $ fetchBlocksIO $ fromIntegral x
-             _ -> do
-               liftIO $ putStrLn "############ Warning: Very ineffecient block body query"
-               liftIO $ forM offsets $ fetchBlocksOneIO . fromIntegral
-          let blocks = catMaybes maybeBlocks
-          if (length maybeBlocks == length blocks) 
-            then yield $ BlockBodies $ map blockToBody blocks
-            else liftIO $ putStrLn "Peer is asking for block bodies I don't have, I will just ignore the request"
-
-
+        MsgEvt (GetBlockBodies []) -> yield $ BlockBodies []
+        MsgEvt (GetBlockBodies headers@(first:rest)) -> do
+          offsets <- lift $ getOffsetsForHashes [first]
+          case offsets of
+            [] -> error $ "########### Warning: peer is asking for a block I don't have: " ++ format first
+            (o:_) -> do
+              blocks <- liftIO $ fmap (fromMaybe (error "Internal error: an offset in SQL points to a value ouside of the block stream.")) $ fetchBlocksIO $ fromIntegral o
+              let requestedBlocks = filterRequestedBlocks headers blocks
+              yield $ BlockBodies $ map blockToBody requestedBlocks
 
         MsgEvt (BlockHeaders headers) -> do
                alreadyRequestedHeaders <- lift getBlockHeaders
@@ -197,10 +198,14 @@ handleMsg peerId = do
 
                  lift $ putBlockHeaders neededHeaders
                  liftIO $ putStrLn $ "putBlockHeaders called with length " ++ show (length neededHeaders)
-                 yield $ GetBlockBodies $ map headerHash neededHeaders
+                 let neededHashes = map headerHash neededHeaders
+                 --when (length neededHeaders /= length (S.toList $ S.fromList neededHashes)) $ error "duplicates in neededHeaders"
+                 yield $ GetBlockBodies neededHashes
         MsgEvt (BlockBodies []) -> return ()
         MsgEvt (BlockBodies bodies) -> do
                headers <- lift getBlockHeaders
+               let verified = and $ zipWith (\h b -> transactionsRoot h == transactionsVerificationValue (fst b)) headers bodies
+               when (not verified) $ error "headers don't match bodies"
                --when (length headers /= length bodies) $ error "not enough bodies returned"
                liftIO $ putStrLn $ "len headers is " ++ show (length headers) ++ ", len bodies is " ++ show (length bodies)
                newCount <- lift $ setTitleAndProduceBlocks $ zipWith createBlockFromHeaderAndBody headers bodies
@@ -215,13 +220,7 @@ handleMsg peerId = do
         NewTX tx -> do
                when (not $ rawTransactionFromBlock tx) $ do
                    yield $ Transactions [rawTX2TX tx]
-        NewBL b -> do
-               maybeSynced <- lift getSyncedBlock
-               case maybeSynced of
-                 Nothing -> return ()
-                 Just syncNumber -> 
-                   when (blockDataNumber (blockBlockData b) >= syncNumber) $
-                     yield $ NewBlockHashes [(blockHash b, fromInteger $ blockDataNumber $ blockBlockData b)]
+        NewBL b -> yield $ NewBlock b 0
            
         _-> return ()
 

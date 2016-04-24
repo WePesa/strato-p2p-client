@@ -164,7 +164,8 @@ instance Format Message where
   format (BlockHeaders headers) = CL.blue "BlockHeaders:"
                                   ++ tab ("\n" ++ unlines (format <$> headers))
   format (GetBlockBodies hashes) =
-    CL.blue "GetBlockBodies" ++ " (" ++ show (length hashes) ++ " hashes)"
+    CL.blue "GetBlockBodies" ++ " (" ++ show (length hashes) ++ " hashes):"
+    ++ tab ("\n" ++ unlines (format <$> hashes))
   format (BlockBodies bodies) =
     CL.blue "BlockBodies:"
     ++ tab ("\n" ++ unlines (formatBody <$> bodies))

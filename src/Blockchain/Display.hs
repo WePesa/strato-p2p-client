@@ -24,6 +24,8 @@ displayMessage outbound (BlockHeaders []) = do
   liftIO $ putStrLn $ prefix outbound ++ CL.blue "BlockHeaders: No headers"
 displayMessage outbound (BlockHeaders headers) = do
   liftIO $ putStrLn $ prefix outbound ++ CL.blue "BlockHeaders: " ++ "(" ++ show (length headers) ++ " new headers ending with #" ++ show (number $ last $ headers) ++ ")"
+displayMessage outbound (GetBlockBodies hashes) =
+  liftIO $ putStrLn $ prefix outbound ++ CL.blue "GetBlockBodies" ++ " (" ++ show (length hashes) ++ " hashes)"
 displayMessage outbound (BlockBodies bodies) = do
   let transactionCount = length $ concat $ map fst bodies
   putStrLn $ prefix outbound ++ CL.blue "BlockBodies: "
