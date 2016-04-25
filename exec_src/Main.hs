@@ -45,6 +45,7 @@ import Blockchain.Data.DataDefs
 import Blockchain.Data.NewBlk
 import Blockchain.Data.RLP
 --import Blockchain.Data.SignedTransaction
+import Blockchain.Data.Transaction
 import Blockchain.Data.Wire
 import qualified Blockchain.Database.MerklePatricia as MP
 import Blockchain.DB.DetailsDB
@@ -143,6 +144,9 @@ handleMsg peerId = do
                  [] -> handleNewBlockHashes [lh]
                  [x] -> yield $ GetBlockHashes (snd x) 0x500
                  _ -> error "unexpected multiple values in call to getLowetHashes 1" -}
+
+        MsgEvt (Transactions txs) -> lift $ insertTXIfNew txs
+
         MsgEvt (NewBlockHashes _) -> syncFetch
 
         MsgEvt (GetBlockHeaders start max' 0 Forward) -> do
