@@ -150,12 +150,13 @@ handleMsg peerId = do
                yield Pong
         MsgEvt (NewBlock block' _) -> do
                lift $ putNewBlk $ blockToNewBlk block'
-               lastBlockHashes <- liftIO $ fmap (map blockHash) $ fetchLastBlocks fetchLimit
-               if blockDataParentHash (blockBlockData block') `elem` lastBlockHashes
-                 then do
-                   _ <- lift $ setTitleAndProduceBlocks [block']
-                   return ()
-                 else do
+               let parentHash = blockDataParentHash $ blockBlockData block'
+               blockOffsets <- lift $ getBlockOffsetsForHashes [parentHash]
+               case blockOffsets of
+                 [x] | blockOffsetHash x == parentHash -> do
+                            _ <- lift $ setTitleAndProduceBlocks [block']
+                            return ()
+                 _ -> do
                    liftIO $ putStrLn "#### New block is missing its parent, I am resyncing"
                    syncFetch
 
@@ -197,19 +198,23 @@ handleMsg peerId = do
               let requestedBlocks = filterRequestedBlocks headers blocks
               yield $ BlockBodies $ map blockToBody requestedBlocks
 
+
+
+
+
         MsgEvt (BlockHeaders headers) -> do
                alreadyRequestedHeaders <- lift getBlockHeaders
                when (null alreadyRequestedHeaders) $ do
-                 lastBlocks <- liftIO $ fetchLastBlocks fetchLimit
-                 --liftIO $ putStrLn $ unlines $ map format lastBlocks
-                 --liftIO $ putStrLn $ unlines $ map format headers
-                 let lastBlockHashes = map blockHash lastBlocks
-                 let allHashes = lastBlockHashes ++ map headerHash headers
-                     neededParentHashes = map parentHash $ filter ((/= 0) . number) headers
-                     unfoundParents = S.fromList neededParentHashes S.\\ S.fromList allHashes
-                 when (not $ S.null unfoundParents) $ 
-                      error $ "incoming blocks don't seem to have existing parents: " ++ unlines (map format $ S.toList unfoundParents) ++ "\n" ++ "New Blocks: " ++ unlines (map format headers)
-                 let neededHeaders = filter (not . (`elem` (map blockHash lastBlocks)) . headerHash) headers
+                 let headerHashes = S.fromList $ map headerHash headers
+                     neededParentHashes = S.fromList $ map parentHash $ filter ((/= 0) . number) headers
+                     allNeeded = headerHashes `S.union` neededParentHashes
+                 found <- lift $ fmap (S.fromList . map blockOffsetHash) $ getBlockOffsetsForHashes $ S.toList allNeeded
+                 let unfoundParents = S.toList $ neededParentHashes S.\\ headerHashes S.\\found
+
+                 when (not $ null unfoundParents) $ do
+                      error $ "incoming blocks don't seem to have existing parents: " ++ unlines (map format $ unfoundParents)
+
+                 let neededHeaders = filter (not . (`elem` found) . headerHash) headers
                  when (null neededHeaders) $ do
                    [theLastBlock] <- liftIO $ fetchLastBlocks 1
                    lift $ setSynced $ blockDataNumber $ blockBlockData theLastBlock
@@ -219,6 +224,10 @@ handleMsg peerId = do
                  let neededHashes = map headerHash neededHeaders
                  --when (length neededHeaders /= length (S.toList $ S.fromList neededHashes)) $ error "duplicates in neededHeaders"
                  yield $ GetBlockBodies neededHashes
+
+
+
+
         MsgEvt (BlockBodies []) -> return ()
         MsgEvt (BlockBodies bodies) -> do
                headers <- lift getBlockHeaders
