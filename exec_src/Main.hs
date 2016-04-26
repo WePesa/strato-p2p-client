@@ -95,6 +95,14 @@ filterRequestedBlocks hashes (_:bRest) = filterRequestedBlocks hashes bRest
 maxReturnedHeaders::Int
 maxReturnedHeaders=1000
 
+awaitMsg::ConduitM Event Message ContextM (Maybe Event)
+awaitMsg = do
+  x <- await
+  case x of
+   Just (MsgEvt msg) -> return $ Just $ MsgEvt msg
+   Nothing -> return Nothing
+   _ -> awaitMsg
+
 handleMsg::Point->Conduit Event ContextM Message
 handleMsg peerId = do
   yield $ Hello {
@@ -105,20 +113,39 @@ handleMsg peerId = do
               nodeId = peerId
             }
 
+  helloResponse <- awaitMsg
+
+  case helloResponse of
+   Just (MsgEvt Hello{}) -> do
+     bestBlock <- lift getBestBlock
+     genesisBlockHash <- lift getGenesisBlockHash
+     yield Status{
+       protocolVersion=fromIntegral ethVersion,
+       networkID=if flags_networkID == -1
+                 then (if flags_testnet then 0 else 1) 
+                 else flags_networkID,
+                      totalDifficulty=0,
+       latestHash=blockHash bestBlock,
+       genesisHash=genesisBlockHash
+       }
+   Just (MsgEvt _) -> error "Peer sent message before handshake was complete"
+   Nothing -> error "Peer hung up before handshake was complete"
+   
+  statusResponse <- awaitMsg
+
+  case statusResponse of
+   Just (MsgEvt (Status{latestHash=_, genesisHash=gh})) -> do
+     genesisBlockHash <- lift getGenesisBlockHash
+     when (gh /= genesisBlockHash) $ error "Wrong genesis block hash!!!!!!!!"
+     lastBlockNumber <- liftIO $ fmap (maximum . map (blockDataNumber . blockBlockData)) $ fetchLastBlocks fetchLimit
+     yield $ GetBlockHeaders (BlockNumber (max (lastBlockNumber - flags_syncBacktrackNumber) 0)) maxReturnedHeaders 0 Forward
+   Just (MsgEvt _) -> error "Peer sent message before handshake was complete"
+   Nothing -> error "Peer hung up before handshake was complete"
+
+
   awaitForever $ \msg ->
     case msg of
-        MsgEvt Hello{} -> do
-               bestBlock <- lift getBestBlock
-               genesisBlockHash <- lift getGenesisBlockHash
-               yield Status{
-                           protocolVersion=fromIntegral ethVersion,
-                           networkID=if flags_networkID == -1
-                                     then (if flags_testnet then 0 else 1) 
-                                     else flags_networkID,
-                           totalDifficulty=0,
-                           latestHash=blockHash bestBlock,
-                           genesisHash=genesisBlockHash
-                         }
+        MsgEvt Hello{} -> error "A hello message appeared after the handshake"
         MsgEvt Ping -> do
                yield Pong
         MsgEvt (NewBlock block' _) -> do
@@ -132,18 +159,7 @@ handleMsg peerId = do
                    liftIO $ putStrLn "#### New block is missing its parent, I am resyncing"
                    syncFetch
 
-        MsgEvt (Status{latestHash=_, genesisHash=gh}) -> do
-               genesisBlockHash <- lift getGenesisBlockHash
-               when (gh /= genesisBlockHash) $ error "Wrong genesis block hash!!!!!!!!"
-               lastBlockNumber <- liftIO $ fmap (maximum . map (blockDataNumber . blockBlockData)) $ fetchLastBlocks fetchLimit
-               yield $ GetBlockHeaders (BlockNumber (max (lastBlockNumber - flags_syncBacktrackNumber) 0)) maxReturnedHeaders 0 Forward
---               lastBlockHash <- liftIO $ fmap last getLastBlockHashes
---               yield $ GetBlockHeaders (BlockHash lastBlockHash) 1024 0 Forward
-{-               previousLowestHash <- lift $ getLowestHashes 1
-               case previousLowestHash of
-                 [] -> handleNewBlockHashes [lh]
-                 [x] -> yield $ GetBlockHashes (snd x) 0x500
-                 _ -> error "unexpected multiple values in call to getLowetHashes 1" -}
+        MsgEvt (Status{latestHash=_, genesisHash=gh}) -> error "A status message appeared after the handshake"
 
         MsgEvt (Transactions txs) -> lift $ insertTXIfNew Nothing txs
 
