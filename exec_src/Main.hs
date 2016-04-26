@@ -145,7 +145,7 @@ handleMsg peerId = do
                  [x] -> yield $ GetBlockHashes (snd x) 0x500
                  _ -> error "unexpected multiple values in call to getLowetHashes 1" -}
 
-        MsgEvt (Transactions txs) -> lift $ insertTXIfNew txs
+        MsgEvt (Transactions txs) -> lift $ insertTXIfNew Nothing txs
 
         MsgEvt (NewBlockHashes _) -> syncFetch
 
