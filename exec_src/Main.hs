@@ -62,6 +62,7 @@ import Blockchain.PeerUrls
 import Blockchain.RawTXNotify
 --import Blockchain.SampleTransactions
 import Blockchain.SHA
+import Blockchain.Stream.VMEvent
 import Blockchain.PeerDB
 import Blockchain.TCPClientWithTimeout
 import Blockchain.Util
@@ -76,12 +77,13 @@ fetchLimit = 50
 
 setTitleAndProduceBlocks::HasSQLDB m=>[Block]->m Int
 setTitleAndProduceBlocks blocks = do
-  lastBlockHashes <- liftIO $ fmap (map blockHash) $ fetchLastBlocks 200
+  lastVMEvents <- liftIO $ fetchLastVMEvents 200
+  let lastBlockHashes = [blockHash b | ChainBlock b <- lastVMEvents]
   let newBlocks = filter (not . (`elem` lastBlockHashes) . blockHash) blocks
   when (not $ null newBlocks) $ do
     liftIO $ putStrLn $ "Block #" ++ show (maximum $ map (blockDataNumber . blockBlockData) newBlocks)
     liftIO $ C.setTitle $ "Block #" ++ show (maximum $ map (blockDataNumber . blockBlockData) newBlocks)
-    _ <- produceBlocks newBlocks
+    _ <- produceVMEvents $ map ChainBlock newBlocks
     return ()
 
   return $ length newBlocks
@@ -137,7 +139,8 @@ handleMsg peerId = do
    Just (MsgEvt (Status{latestHash=_, genesisHash=gh})) -> do
      genesisBlockHash <- lift getGenesisBlockHash
      when (gh /= genesisBlockHash) $ error "Wrong genesis block hash!!!!!!!!"
-     lastBlockNumber <- liftIO $ fmap (maximum . map (blockDataNumber . blockBlockData)) $ fetchLastBlocks fetchLimit
+     --lastBlockNumber <- liftIO $ fmap (maximum . map (blockDataNumber . blockBlockData)) $ fetchLastBlocks fetchLimit
+     let lastBlockNumber = 0
      yield $ GetBlockHeaders (BlockNumber (max (lastBlockNumber - flags_syncBacktrackNumber) 0)) maxReturnedHeaders 0 Forward
    Just (MsgEvt _) -> error "Peer sent message before handshake was complete"
    Nothing -> error "Peer hung up before handshake was complete"
@@ -177,9 +180,9 @@ handleMsg peerId = do
           blocks <-
            case blockOffsets of
             [] -> return []
-            (blockOffset:_) -> liftIO $ fmap (fromMaybe []) $ fetchBlocksIO $ fromIntegral blockOffset
-
-          liftIO $ putStrLn $ "&&&&&&&&&& blocks: " ++ unlines (map format blocks)
+            (blockOffset:_) -> do
+                    vmEvents <- liftIO $ fmap (fromMaybe []) $ fetchVMEventsIO $ fromIntegral blockOffset
+                    return $ [b | ChainBlock b <- vmEvents]
 
           let blocksWithHashes = map (\b -> (blockHash b, b)) blocks
           existingHashes <- lift $ fmap (map blockOffsetHash) $ getBlockOffsetsForHashes $ map fst blocksWithHashes
@@ -194,7 +197,8 @@ handleMsg peerId = do
           case offsets of
             [] -> error $ "########### Warning: peer is asking for a block I don't have: " ++ format first
             (o:_) -> do
-              blocks <- liftIO $ fmap (fromMaybe (error "Internal error: an offset in SQL points to a value ouside of the block stream.")) $ fetchBlocksIO $ fromIntegral o
+              vmEvents <- liftIO $ fmap (fromMaybe (error "Internal error: an offset in SQL points to a value ouside of the block stream.")) $ fetchVMEventsIO $ fromIntegral o
+              let blocks = [b | ChainBlock b <- vmEvents]
               let requestedBlocks = filterRequestedBlocks headers blocks
               yield $ BlockBodies $ map blockToBody requestedBlocks
 
@@ -215,9 +219,6 @@ handleMsg peerId = do
                       error $ "incoming blocks don't seem to have existing parents: " ++ unlines (map format $ unfoundParents)
 
                  let neededHeaders = filter (not . (`elem` found) . headerHash) headers
-                 when (null neededHeaders) $ do
-                   [theLastBlock] <- liftIO $ fetchLastBlocks 1
-                   lift $ setSynced $ blockDataNumber $ blockBlockData theLastBlock
 
                  lift $ putBlockHeaders neededHeaders
                  liftIO $ putStrLn $ "putBlockHeaders called with length " ++ show (length neededHeaders)
@@ -255,8 +256,13 @@ syncFetch::Conduit Event ContextM Message
 syncFetch = do
   blockHeaders' <- lift getBlockHeaders
   when (null blockHeaders') $ do
-    lastBlockNumber <- liftIO $ fmap (blockDataNumber . blockBlockData . last) $ fetchLastBlocks fetchLimit
-    yield $ GetBlockHeaders (BlockNumber lastBlockNumber) maxReturnedHeaders 0 Forward
+    lastVMEvents <- liftIO $ fetchLastVMEvents fetchLimit
+    let lastBlocks = [b | ChainBlock b <- lastVMEvents]
+    if null lastBlocks
+      then error "overflow in syncFetch"
+      else do
+        let lastBlockNumber = blockDataNumber . blockBlockData . last $ lastBlocks
+        yield $ GetBlockHeaders (BlockNumber lastBlockNumber) maxReturnedHeaders 0 Forward
 
 
 {-
@@ -386,7 +392,7 @@ runPeer ipAddress thePort otherPubKey myPriv = do
         pool <- runNoLoggingT $ SQL.createPostgresqlPool
                 "host=localhost dbname=eth user=postgres password=api port=5432" 20
       
-        _ <- flip runStateT (Context pool dataset [] [] Nothing) $ do
+        _ <- flip runStateT (Context pool dataset [] []) $ do
           (_, (outCxt, inCxt)) <-
             transPipe liftIO (appSource server) $$+
             ethCryptConnect myPriv otherPubKey `fuseUpstream`

@@ -7,8 +7,6 @@ module Blockchain.Context (
   addDebugMsg,
   getBlockHeaders,
   putBlockHeaders,
-  getSyncedBlock,
-  setSynced,
   clearDebugMsg
   ) where
 
@@ -27,8 +25,7 @@ data Context =
     contextSQLDB::SQLDB,
     miningDataset::B.ByteString,
     vmTrace::[String],
-    blockHeaders::[BlockHeader],
-    contextSynced::Maybe Integer
+    blockHeaders::[BlockHeader]
     }
 
 type ContextM = StateT Context (ResourceT IO)
@@ -67,17 +64,6 @@ putBlockHeaders::[BlockHeader]->ContextM ()
 putBlockHeaders headers = do
   cxt <- get
   put cxt{blockHeaders=headers}
-
-getSyncedBlock::ContextM (Maybe Integer)
-getSyncedBlock = do
-  cxt <- get
-  return $ contextSynced cxt
-
-setSynced::Integer->ContextM ()
-setSynced number = do
-  cxt <- get
-  put cxt{contextSynced=Just number}
-
 
 addDebugMsg::String->ContextM ()
 addDebugMsg msg = do
