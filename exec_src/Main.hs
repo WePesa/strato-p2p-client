@@ -124,8 +124,9 @@ handleMsg peerId = do
    Just (MsgEvt _) -> error "Peer sent message before handshake was complete"
    Nothing -> error "Peer hung up before handshake was complete"
 
+  handleEvents
 
-  awaitForever $ \msg ->
+
 
 
 
@@ -249,7 +250,7 @@ runPeer ipAddress thePort otherPubKey myPriv = do
         pool <- runNoLoggingT $ SQL.createPostgresqlPool
                 "host=localhost dbname=eth user=postgres password=api port=5432" 20
       
-        _ <- flip runStateT (Context pool dataset [] []) $ do
+        _ <- flip runStateT (Context pool [] []) $ do
           (_, (outCxt, inCxt)) <-
             transPipe liftIO (appSource server) $$+
             ethCryptConnect myPriv otherPubKey `fuseUpstream`

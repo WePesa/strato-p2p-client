@@ -23,7 +23,6 @@ import Blockchain.DB.SQLDB
 data Context =
   Context {
     contextSQLDB::SQLDB,
-    miningDataset::B.ByteString,
     vmTrace::[String],
     blockHeaders::[BlockHeader]
     }

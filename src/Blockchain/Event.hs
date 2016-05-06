@@ -2,7 +2,8 @@
 
 module Blockchain.Event (
   Event(..),
-  handleEvents
+  handleEvents,
+  maxReturnedHeaders
   ) where
 
 import Control.Monad
