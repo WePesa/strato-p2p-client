@@ -250,7 +250,7 @@ handleMsg peerId = do
         NewTX tx -> do
                when (not $ rawTransactionFromBlock tx) $ do
                    yield $ Transactions [rawTX2TX tx]
-        NewBL b -> yield $ NewBlock b 0
+        NewBL b _ -> yield $ NewBlock b 0
            
         _-> return ()
 
@@ -411,7 +411,7 @@ runPeer ipAddress thePort otherPubKey myPriv = do
             transPipe (liftIO . flip catch handleError) (tap (displayMessage False)) =$=
             CL.map MsgEvt,
             transPipe liftIO txNotificationSource =$= CL.map NewTX,
-            transPipe liftIO blockNotificationSource =$= CL.map NewBL
+            transPipe liftIO blockNotificationSource =$= CL.map (flip NewBL 0)
             ] 2
 
           eventSource =$=
