@@ -1,4 +1,4 @@
-{-# LANGUAGE OverloadedStrings, TemplateHaskell #-}
+{-# LANGUAGE OverloadedStrings, TemplateHaskell, FlexibleContexts #-}
 
 module Main (
   main
@@ -97,7 +97,8 @@ filterRequestedBlocks hashes (_:bRest) = filterRequestedBlocks hashes bRest
 maxReturnedHeaders::Int
 maxReturnedHeaders=1000
 
-awaitMsg::ConduitM Event Message ContextM (Maybe Event)
+awaitMsg::MonadIO m=>
+          ConduitM Event Message m (Maybe Event)
 awaitMsg = do
   x <- await
   case x of
@@ -105,7 +106,8 @@ awaitMsg = do
    Nothing -> return Nothing
    _ -> awaitMsg
 
-handleMsg::Point->Conduit Event ContextM Message
+handleMsg::(MonadIO m, MonadState Context m, HasSQLDB m)=>
+           Point->Conduit Event m Message
 handleMsg peerId = do
   yield $ Hello {
               version = 4,
@@ -252,7 +254,8 @@ handleMsg peerId = do
            
         _-> return ()
 
-syncFetch::Conduit Event ContextM Message
+syncFetch::(MonadIO m, MonadState Context m)=>
+           Conduit Event m Message
 syncFetch = do
   blockHeaders' <- lift getBlockHeaders
   when (null blockHeaders') $ do

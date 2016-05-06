@@ -1,4 +1,4 @@
-{-# LANGUAGE OverloadedStrings, TypeSynonymInstances, FlexibleInstances, ScopedTypeVariables #-}
+{-# LANGUAGE OverloadedStrings, TypeSynonymInstances, FlexibleInstances, ScopedTypeVariables, FlexibleContexts #-}
 
 module Blockchain.Context (
   Context(..),
@@ -50,27 +50,32 @@ initContext theType = do
       False
 -}
 
-getDebugMsg::ContextM String
+getDebugMsg::MonadState Context m=>
+             m String
 getDebugMsg = do
   cxt <- get
   return $ concat $ reverse $ vmTrace cxt
 
-getBlockHeaders::ContextM [BlockHeader]
+getBlockHeaders::MonadState Context m=>
+                 m [BlockHeader]
 getBlockHeaders = do
   cxt <- get
   return $ blockHeaders cxt
 
-putBlockHeaders::[BlockHeader]->ContextM ()
+putBlockHeaders::MonadState Context m=>
+                 [BlockHeader]->m ()
 putBlockHeaders headers = do
   cxt <- get
   put cxt{blockHeaders=headers}
 
-addDebugMsg::String->ContextM ()
+addDebugMsg::MonadState Context m=>
+             String->m ()
 addDebugMsg msg = do
   cxt <- get
   put cxt{vmTrace=msg:vmTrace cxt}
 
-clearDebugMsg::ContextM ()
+clearDebugMsg::MonadState Context m=>
+               m ()
 clearDebugMsg = do
   cxt <- get
   put cxt{vmTrace=[]}
