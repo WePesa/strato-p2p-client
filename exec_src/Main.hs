@@ -366,13 +366,6 @@ hPubKeyToPubKey pubKey = Point (fromIntegral x) (fromIntegral y)
     y = fromMaybe (error "getY failed in prvKey2Address") $ H.getY hPoint
     hPoint = H.pubKeyPoint pubKey
 -}
-
---This must exist somewhere already
-tap::MonadIO m=>(a->m ())->Conduit a m a
-tap f = do
-  awaitForever $ \x -> do
-      lift $ f x
-      yield x
   
 runPeer::String->PortNumber->Point->PrivateNumber->IO ()
 runPeer ipAddress thePort otherPubKey myPriv = do
@@ -408,7 +401,7 @@ runPeer ipAddress thePort otherPubKey myPriv = do
             transPipe (liftIO . flip catch handleError) (appSource server) =$=
             transPipe (liftIO . flip catch handleError) (ethDecrypt inCxt) =$=
             transPipe (liftIO . flip catch handleError) bytesToMessages =$=
-            transPipe (liftIO . flip catch handleError) (tap (displayMessage False)) =$=
+            transPipe (liftIO . flip catch handleError) (tap (displayMessage False "")) =$=
             CL.map MsgEvt,
             transPipe liftIO txNotificationSource =$= CL.map NewTX,
             transPipe liftIO blockNotificationSource =$= CL.map (flip NewBL 0)
@@ -416,7 +409,7 @@ runPeer ipAddress thePort otherPubKey myPriv = do
 
           eventSource =$=
             handleMsg myPublic =$=
-            transPipe liftIO (tap (displayMessage True)) =$=
+            transPipe liftIO (tap (displayMessage True "")) =$=
             messagesToBytes =$=
             ethEncrypt outCxt $$
             transPipe liftIO (appSink server)
