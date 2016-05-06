@@ -63,7 +63,11 @@ handleEvents::(MonadIO m, HasSQLDB m, MonadState Context m)=>
 handleEvents = awaitForever $ \msg -> do
   case msg of
    MsgEvt Hello{} -> error "A hello message appeared after the handshake"
+   MsgEvt Status{} -> error "A status message appeared after the handshake"
    MsgEvt Ping -> yield Pong
+
+   MsgEvt (Transactions txs) -> lift $ insertTXIfNew Nothing txs
+
    MsgEvt (NewBlock block' _) -> do
               lift $ putNewBlk $ blockToNewBlk block'
               let parentHash = blockDataParentHash $ blockBlockData block'
@@ -75,10 +79,6 @@ handleEvents = awaitForever $ \msg -> do
                _ -> do
                  liftIO $ putStrLn "#### New block is missing its parent, I am resyncing"
                  syncFetch
-
-   MsgEvt (Status{latestHash=_, genesisHash=gh}) -> error "A status message appeared after the handshake"
-
-   MsgEvt (Transactions txs) -> lift $ insertTXIfNew Nothing txs
 
    MsgEvt (NewBlockHashes _) -> syncFetch
 
@@ -104,21 +104,6 @@ handleEvents = awaitForever $ \msg -> do
           yield $ BlockHeaders $ nub $ map blockToBlockHeader  $ take max' $ filter ((/= MP.StateRoot "") . blockDataStateRoot . blockBlockData) existingBlocks
           return ()
 
-   MsgEvt (GetBlockBodies []) -> yield $ BlockBodies []
-   MsgEvt (GetBlockBodies headers@(first:rest)) -> do
-          offsets <- lift $ getOffsetsForHashes [first]
-          case offsets of
-            [] -> error $ "########### Warning: peer is asking for a block I don't have: " ++ format first
-            (o:_) -> do
-              vmEvents <- liftIO $ fmap (fromMaybe (error "Internal error: an offset in SQL points to a value ouside of the block stream.")) $ fetchVMEventsIO $ fromIntegral o
-              let blocks = [b | ChainBlock b <- vmEvents]
-              let requestedBlocks = filterRequestedBlocks headers blocks
-              yield $ BlockBodies $ map blockToBody requestedBlocks
-
-
-
-
-
    MsgEvt (BlockHeaders headers) -> do
                alreadyRequestedHeaders <- lift getBlockHeaders
                when (null alreadyRequestedHeaders) $ do
@@ -139,8 +124,16 @@ handleEvents = awaitForever $ \msg -> do
                  --when (length neededHeaders /= length (S.toList $ S.fromList neededHashes)) $ error "duplicates in neededHeaders"
                  yield $ GetBlockBodies neededHashes
 
-
-
+   MsgEvt (GetBlockBodies []) -> yield $ BlockBodies []
+   MsgEvt (GetBlockBodies headers@(first:rest)) -> do
+          offsets <- lift $ getOffsetsForHashes [first]
+          case offsets of
+            [] -> error $ "########### Warning: peer is asking for a block I don't have: " ++ format first
+            (o:_) -> do
+              vmEvents <- liftIO $ fmap (fromMaybe (error "Internal error: an offset in SQL points to a value ouside of the block stream.")) $ fetchVMEventsIO $ fromIntegral o
+              let blocks = [b | ChainBlock b <- vmEvents]
+              let requestedBlocks = filterRequestedBlocks headers blocks
+              yield $ BlockBodies $ map blockToBody requestedBlocks
 
    MsgEvt (BlockBodies []) -> return ()
    MsgEvt (BlockBodies bodies) -> do
@@ -158,12 +151,14 @@ handleEvents = awaitForever $ \msg -> do
                       then yield $ GetBlockHeaders (BlockHash $ headerHash $ last headers) maxReturnedHeaders 0 Forward
                       else return ()
                  else yield $ GetBlockBodies $ map headerHash remainingHeaders
+
    NewTX tx -> do
                when (not $ rawTransactionFromBlock tx) $ do
                    yield $ Transactions [rawTX2TX tx]
-   NewBL b _ -> yield $ NewBlock b 0
+   NewBL b d -> yield $ NewBlock b d
            
-   _-> return ()
+   event -> liftIO $ error $ "unrecognized event: " ++ show event
+
 
 
 
