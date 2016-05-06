@@ -65,6 +65,7 @@ library
                  , conduit
                  , conduit-combinators
                  , conduit-extra
+                 , containers
                  , cryptohash
                  , crypto-pubkey-types
                  , esqueleto
@@ -74,6 +75,7 @@ library
                  , hflags
                  , lens
                  , milena
+                 , merkle-patricia-db
                  , monad-logger
                  , mtl
                  , network
