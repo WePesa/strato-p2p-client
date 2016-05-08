@@ -263,12 +263,12 @@ runPeer ipAddress thePort otherPubKey myPriv = do
               handleError e = error' (show (e::SomeException))
 
           eventSource <- mergeSourcesCloseForAny [
-            transPipe (lift . flip catch handleError) (appSource server) =$=
-            transPipe (lift . flip catch handleError) (ethDecrypt inCxt) =$=
-            transPipe (lift . flip catch handleError) bytesToMessages =$=
-            transPipe (lift . flip catch handleError) (tap (displayMessage False "")) =$=
+            transPipe (flip catch handleError) (appSource server) =$=
+            transPipe (flip catch handleError) (ethDecrypt inCxt) =$=
+            transPipe (flip catch handleError) bytesToMessages =$=
+            transPipe (flip catch handleError) (tap (displayMessage False "")) =$=
             CL.map MsgEvt,
-            transPipe liftIO txNotificationSource =$= CL.map NewTX,
+            txNotificationSource =$= CL.map NewTX,
             transPipe liftIO blockNotificationSource =$= CL.map (flip NewBL 0)
             ] 2
 
