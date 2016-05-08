@@ -269,7 +269,7 @@ runPeer ipAddress thePort otherPubKey myPriv = do
             transPipe (flip catch handleError) (tap (displayMessage False "")) =$=
             CL.map MsgEvt,
             txNotificationSource =$= CL.map NewTX,
-            transPipe liftIO blockNotificationSource =$= CL.map (flip NewBL 0)
+            blockNotificationSource =$= CL.map (flip NewBL 0)
             ] 2
 
           eventSource =$=
