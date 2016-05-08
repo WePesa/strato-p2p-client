@@ -11,10 +11,8 @@ import qualified Data.ByteString.Char8 as BC
 
 import           Control.Monad.Logger    (runNoLoggingT)
 import qualified Database.Persist.Postgresql as SQL
+import Blockchain.EthConf
 
-connStr'::SQL.ConnectionString
-connStr' = BC.pack $ "host=localhost dbname=eth user=postgres password=api port=5432"
-                   
 ipAddressesDB::[PPeer]
 ipAddressesDB = unsafePerformIO $ do
   sqldb <- runNoLoggingT $ SQL.createPostgresqlPool connStr' 20
