@@ -8,12 +8,14 @@ module Blockchain.Event (
 
 import Control.Monad
 import Control.Monad.IO.Class
+import Control.Monad.Logger
 import Control.Monad.State
 import Control.Monad.Trans
 import Data.Conduit
 import Data.List
 import Data.Maybe
 import qualified Data.Set as S
+import qualified Data.Text as T
 
 import qualified Blockchain.Colors as C
 import Blockchain.Context
@@ -33,14 +35,14 @@ import Blockchain.Verification
 
 data Event = MsgEvt Message | NewTX RawTransaction | NewBL Block Integer deriving (Show)
 
-setTitleAndProduceBlocks::HasSQLDB m=>[Block]->m Int
+setTitleAndProduceBlocks::(MonadLogger m, HasSQLDB m)=>[Block]->m Int
 setTitleAndProduceBlocks blocks = do
   lastVMEvents <- liftIO $ fetchLastVMEvents 200
   let lastBlockHashes = [blockHash b | ChainBlock b <- lastVMEvents]
   let newBlocks = filter (not . (`elem` lastBlockHashes) . blockHash) blocks
   when (not $ null newBlocks) $ do
-    liftIO $ putStrLn $ "Block #" ++ show (maximum $ map (blockDataNumber . blockBlockData) newBlocks)
-    liftIO $ C.setTitle $ "Block #" ++ show (maximum $ map (blockDataNumber . blockBlockData) newBlocks)
+    logInfoN $ T.pack $ "Block #" ++ show (maximum $ map (blockDataNumber . blockBlockData) newBlocks)
+    logInfoN $ T.pack $ "Block #" ++ show (maximum $ map (blockDataNumber . blockBlockData) newBlocks)
     _ <- produceVMEvents $ map ChainBlock newBlocks
     return ()
 
@@ -58,7 +60,7 @@ filterRequestedBlocks hashes (_:bRest) = filterRequestedBlocks hashes bRest
 maxReturnedHeaders::Int
 maxReturnedHeaders=1000
 
-handleEvents::(MonadIO m, HasSQLDB m, MonadState Context m)=>
+handleEvents::(MonadIO m, HasSQLDB m, MonadState Context m, MonadLogger m)=>
               Conduit Event m Message
 handleEvents = awaitForever $ \msg -> do
   case msg of
@@ -77,7 +79,7 @@ handleEvents = awaitForever $ \msg -> do
                        _ <- lift $ setTitleAndProduceBlocks [block']
                        return ()
                _ -> do
-                 liftIO $ putStrLn "#### New block is missing its parent, I am resyncing"
+                 logInfoN "#### New block is missing its parent, I am resyncing"
                  syncFetch
 
    MsgEvt (NewBlockHashes _) -> syncFetch
@@ -88,7 +90,7 @@ handleEvents = awaitForever $ \msg -> do
             BlockNumber n -> lift $ fmap (map blockOffsetOffset) $ getBlockOffsetsForNumber $ fromIntegral n
             BlockHash h -> lift $ getOffsetsForHashes [h]
 
-          liftIO $ putStrLn $ "blockOffsets: " ++ show blockOffsets
+          logInfoN $ T.pack $ "blockOffsets: " ++ show blockOffsets
          
           blocks <-
            case blockOffsets of
@@ -119,7 +121,7 @@ handleEvents = awaitForever $ \msg -> do
                  let neededHeaders = filter (not . (`elem` found) . headerHash) headers
 
                  lift $ putBlockHeaders neededHeaders
-                 liftIO $ putStrLn $ "putBlockHeaders called with length " ++ show (length neededHeaders)
+                 logInfoN $ T.pack $ "putBlockHeaders called with length " ++ show (length neededHeaders)
                  let neededHashes = map headerHash neededHeaders
                  --when (length neededHeaders /= length (S.toList $ S.fromList neededHashes)) $ error "duplicates in neededHeaders"
                  yield $ GetBlockBodies neededHashes
@@ -141,7 +143,7 @@ handleEvents = awaitForever $ \msg -> do
                let verified = and $ zipWith (\h b -> transactionsRoot h == transactionsVerificationValue (fst b)) headers bodies
                when (not verified) $ error "headers don't match bodies"
                --when (length headers /= length bodies) $ error "not enough bodies returned"
-               liftIO $ putStrLn $ "len headers is " ++ show (length headers) ++ ", len bodies is " ++ show (length bodies)
+               logInfoN $ T.pack $ "len headers is " ++ show (length headers) ++ ", len bodies is " ++ show (length bodies)
                newCount <- lift $ setTitleAndProduceBlocks $ zipWith createBlockFromHeaderAndBody headers bodies
                let remainingHeaders = drop (length bodies) headers
                lift $ putBlockHeaders remainingHeaders

@@ -84,7 +84,7 @@ awaitMsg = do
    Nothing -> return Nothing
    _ -> awaitMsg
 
-handleMsg::(MonadIO m, MonadState Context m, HasSQLDB m)=>
+handleMsg::(MonadIO m, MonadState Context m, HasSQLDB m, MonadLogger m)=>
            Point->Conduit Event m Message
 handleMsg peerId = do
   yield $ Hello {
