@@ -329,5 +329,5 @@ lMain args = do
 
 main::IO ()    
 main = do
-  args <- $initHFlags "The Strato Indexer"
+  args <- $initHFlags "Strato Peer Client"
   flip runLoggingT printLogMsg $ lMain args
