@@ -35,6 +35,7 @@ executable strato-p2p-client
                  , ethereum-rlp
                  , haskoin
                  , hflags
+                 , lifted-base
                  , merkle-patricia-db
                  , monad-logger
                  , mtl
@@ -73,9 +74,11 @@ library
                  , ethereum-rlp
                  , blockapps-util
                  , hflags
+                 , lifted-base
                  , lens
                  , milena
                  , merkle-patricia-db
+                 , monad-control
                  , monad-logger
                  , mtl
                  , network

@@ -4,7 +4,7 @@ module Main (
   main
   ) where
 
-import Control.Exception
+import Control.Exception.Lifted
 import Control.Monad.IO.Class
 import Control.Monad.Logger
 import Control.Monad.State
@@ -58,6 +58,7 @@ import Blockchain.ExtMergeSources
 import Blockchain.ExtWord
 import Blockchain.Format
 import Blockchain.Options
+import Blockchain.Output
 import Blockchain.PeerUrls
 import Blockchain.RawTXNotify
 --import Blockchain.SampleTransactions
@@ -199,7 +200,7 @@ getRLPData = do
                return $ x `B.cons` length' `B.append` rest
     x -> error $ "missing case in getRLPData: " ++ show x 
 
-bytesToMessages::Conduit B.ByteString IO Message
+bytesToMessages::Monad m=>Conduit B.ByteString m Message
 bytesToMessages = forever $ do
   msgTypeData <- cbSafeTake 1
   let word = fromInteger (rlpDecode $ rlpDeserialize msgTypeData::Integer)
@@ -207,7 +208,7 @@ bytesToMessages = forever $ do
   objBytes <- getRLPData
   yield $ obj2WireMessage word $ rlpDeserialize objBytes
           
-messagesToBytes::Conduit Message ContextM B.ByteString
+messagesToBytes::Monad m=>Conduit Message m B.ByteString
 messagesToBytes = do
   maybeMsg <- await
   case maybeMsg of
@@ -229,41 +230,43 @@ hPubKeyToPubKey pubKey = Point (fromIntegral x) (fromIntegral y)
     hPoint = H.pubKeyPoint pubKey
 -}
   
-runPeer::String->PortNumber->Point->PrivateNumber->IO ()
+runPeer::(MonadIO m, MonadBaseControl IO m, MonadLogger m, MonadThrow m)=>
+         String->PortNumber->Point->PrivateNumber->m ()
+--runPeer::String->PortNumber->Point->PrivateNumber->LoggingT IO ()
 runPeer ipAddress thePort otherPubKey myPriv = do
-  putStrLn $ C.blue "Welcome to strato-p2p-client"
-  putStrLn $ C.blue "============================"
-  putStrLn $ C.green " * " ++ "Attempting to connect to " ++ C.yellow (ipAddress ++ ":" ++ show thePort)
+  logInfoN $ T.pack $ C.blue "Welcome to strato-p2p-client"
+  logInfoN $ T.pack $ C.blue "============================"
+  logInfoN $ T.pack $ C.green " * " ++ "Attempting to connect to " ++ C.yellow (ipAddress ++ ":" ++ show thePort)
 
   let myPublic = calculatePublic theCurve myPriv
-  putStrLn $ C.green " * " ++ "my pubkey is: " ++ C.yellow (take 30 (format $ pointToByteString myPublic) ++ "...")
-  --putStrLn $ "my NodeID is: " ++ (format $ pointToByteString $ hPubKeyToPubKey $ H.derivePubKey $ fromMaybe (error "invalid private number in main") $ H.makePrvKey $ fromIntegral myPriv)
+  logInfoN $ T.pack $ C.green " * " ++ "my pubkey is: " ++ C.yellow (take 30 (format $ pointToByteString myPublic) ++ "...")
+  --logInfoN $ T.pack $ "my NodeID is: " ++ (format $ pointToByteString $ hPubKeyToPubKey $ H.derivePubKey $ fromMaybe (error "invalid private number in main") $ H.makePrvKey $ fromIntegral myPriv)
 
-  putStrLn $ C.green " * " ++ "server pubkey is : " ++ C.yellow (take 30 (format $ pointToByteString otherPubKey) ++ "...")
+  logInfoN $ T.pack $ C.green " * " ++ "server pubkey is : " ++ C.yellow (take 30 (format $ pointToByteString otherPubKey) ++ "...")
 
   --cch <- mkCache 1024 "seed"
 
   dataset <- return "" -- mmapFileByteString "dataset0" Nothing
 
   runTCPClientWithConnectTimeout (clientSettings (fromIntegral thePort) $ BC.pack ipAddress) 5 $ \server -> 
-      runResourceT $ do
+      runResourceT $ ((do
         pool <- runNoLoggingT $ SQL.createPostgresqlPool
                 "host=localhost dbname=eth user=postgres password=api port=5432" 20
       
-        _ <- flip runStateT (Context pool [] []) $ do
+        _ <- flip runStateT (Context pool [] []) $ ((do
           (_, (outCxt, inCxt)) <-
             transPipe liftIO (appSource server) $$+
-            ethCryptConnect myPriv otherPubKey `fuseUpstream`
+            transPipe liftIO (ethCryptConnect myPriv otherPubKey) `fuseUpstream`
             transPipe liftIO (appSink server)
 
-          let handleError::SomeException->IO a
-              handleError e = error' (show e)
+          let --handleError::SomeException->LoggingT IO a
+              handleError e = error' (show (e::SomeException))
 
           eventSource <- mergeSourcesCloseForAny [
-            transPipe (liftIO . flip catch handleError) (appSource server) =$=
-            transPipe (liftIO . flip catch handleError) (ethDecrypt inCxt) =$=
-            transPipe (liftIO . flip catch handleError) bytesToMessages =$=
-            transPipe (liftIO . flip catch handleError) (tap (displayMessage False "")) =$=
+            transPipe (lift . flip catch handleError) (appSource server) =$=
+            transPipe (lift . flip catch handleError) (ethDecrypt inCxt) =$=
+            transPipe (lift . flip catch handleError) bytesToMessages =$=
+            transPipe (lift . flip catch handleError) (tap (displayMessage False "")) =$=
             CL.map MsgEvt,
             transPipe liftIO txNotificationSource =$= CL.map NewTX,
             transPipe liftIO blockNotificationSource =$= CL.map (flip NewBL 0)
@@ -271,15 +274,16 @@ runPeer ipAddress thePort otherPubKey myPriv = do
 
           eventSource =$=
             handleMsg myPublic =$=
-            transPipe liftIO (tap (displayMessage True "")) =$=
+            transPipe lift (tap (displayMessage True "")) =$=
             messagesToBytes =$=
             ethEncrypt outCxt $$
-            transPipe liftIO (appSink server)
+            transPipe liftIO (appSink server)))
 
 
-        return ()
+        return ()))
 
-getPubKeyRunPeer::String->PortNumber->Maybe Point->IO ()
+getPubKeyRunPeer::(MonadIO m, MonadBaseControl IO m, MonadLogger m, MonadThrow m)=>
+                  String->PortNumber->Maybe Point->m ()
 getPubKeyRunPeer ipAddress thePort maybePubKey = do
   entropyPool <- liftIO createEntropyPool
 
@@ -288,33 +292,29 @@ getPubKeyRunPeer ipAddress thePort maybePubKey = do
 
   case maybePubKey of
     Nothing -> do
-      putStrLn $ "Attempting to connect to " ++ show ipAddress ++ ":" ++ show thePort ++ ", but I don't have the pubkey.  I will try to use a UDP ping to get the pubkey."
-      eitherOtherPubKey <- getServerPubKey (fromMaybe (error "invalid private number in main") $ H.makePrvKey $ fromIntegral myPriv) ipAddress thePort
+      logInfoN $ T.pack $ "Attempting to connect to " ++ show ipAddress ++ ":" ++ show thePort ++ ", but I don't have the pubkey.  I will try to use a UDP ping to get the pubkey."
+      eitherOtherPubKey <- liftIO $ getServerPubKey (fromMaybe (error "invalid private number in main") $ H.makePrvKey $ fromIntegral myPriv) ipAddress thePort
       case eitherOtherPubKey of
             Right otherPubKey -> do
-                               putStrLn $ "#### Success, the pubkey has been obtained: " ++ (format $ pointToByteString otherPubKey)
-                               runPeer ipAddress thePort otherPubKey myPriv
-            Left e -> putStrLn $ "Error, couldn't get public key for peer: " ++ show e
+              logInfoN $ T.pack $ "#### Success, the pubkey has been obtained: " ++ (format $ pointToByteString otherPubKey)
+              runPeer ipAddress thePort otherPubKey myPriv
+            Left e -> logInfoN $ T.pack $ "Error, couldn't get public key for peer: " ++ show e
     Just otherPubKey -> runPeer ipAddress thePort otherPubKey myPriv
                       
 
-runPeerInList::[(String, PortNumber, Maybe Point)]->Maybe Int->IO ()
+runPeerInList::(MonadIO m, MonadBaseControl IO m, MonadLogger m, MonadThrow m)=>
+               [(String, PortNumber, Maybe Point)]->Maybe Int->m ()
 runPeerInList addresses maybePeerNumber = do
   peerNumber <- case maybePeerNumber of
                   Just x -> return x
-                  Nothing -> randomRIO (0, length addresses - 1)
+                  Nothing -> liftIO $ randomRIO (0, length addresses - 1)
 
   let (ipAddress, thePort, maybePubKey) = addresses !! peerNumber
 
   getPubKeyRunPeer ipAddress thePort maybePubKey
                
-main::IO ()    
-main = do
-  hSetBuffering stdout NoBuffering
-  hSetBuffering stderr NoBuffering
-
-  args <- $initHFlags "The Ethereum Haskell Peer"
-
+lMain::[String]->LoggingT IO ()    
+lMain args = do
   let maybePeerNumber =
         case args of
           [] -> Nothing
@@ -324,3 +324,10 @@ main = do
   if flags_sqlPeers
     then sequence_ $ repeat $ runPeerInList (map (\peer -> (T.unpack $ pPeerIp peer, fromIntegral $ pPeerPort peer, Just $ pPeerPubkey peer)) ipAddressesDB) maybePeerNumber
     else sequence_ $ repeat $ runPeerInList (map (\peer -> (fst peer, snd peer, Nothing)) ipAddresses) maybePeerNumber
+
+
+
+main::IO ()    
+main = do
+  args <- $initHFlags "The Strato Indexer"
+  flip runLoggingT printLogMsg $ lMain args
