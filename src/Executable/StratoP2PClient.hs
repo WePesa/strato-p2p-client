@@ -19,15 +19,11 @@ import Data.Conduit
 import qualified Data.Conduit.Binary as CB
 import qualified Data.Conduit.List as CL
 import Data.Conduit.Network
-import Data.List
-import qualified Data.Set as S
 import qualified Data.Text as T
 import qualified Database.Persist.Postgresql as SQL
-import HFlags
 import Network
 import qualified Network.Haskoin.Internals as H
 import System.Random
-import System.IO
 
 import Blockchain.Frame
 import Blockchain.UDP hiding (Ping,Pong)
@@ -39,15 +35,10 @@ import qualified Blockchain.Colors as C
 import Blockchain.Constants
 import Blockchain.Context
 import Blockchain.Data.BlockDB
-import Blockchain.Data.BlockHeader
-import Blockchain.Data.BlockOffset
 import Blockchain.Data.DataDefs
-import Blockchain.Data.NewBlk
 import Blockchain.Data.RLP
 --import Blockchain.Data.SignedTransaction
-import Blockchain.Data.Transaction
 import Blockchain.Data.Wire
-import qualified Blockchain.Database.MerklePatricia as MP
 import Blockchain.DB.DetailsDB
 import Blockchain.DB.SQLDB
 --import Blockchain.DB.ModifyStateDB
@@ -58,16 +49,12 @@ import Blockchain.ExtMergeSources
 import Blockchain.ExtWord
 import Blockchain.Format
 import Blockchain.Options
-import Blockchain.Output
 import Blockchain.PeerUrls
 import Blockchain.RawTXNotify
 --import Blockchain.SampleTransactions
-import Blockchain.SHA
-import Blockchain.Stream.VMEvent
 import Blockchain.PeerDB
 import Blockchain.TCPClientWithTimeout
 import Blockchain.Util
-import Blockchain.Verification
 
 --import Debug.Trace
 
@@ -76,11 +63,11 @@ import Data.Maybe
 
 
 awaitMsg::MonadIO m=>
-          ConduitM Event Message m (Maybe Event)
+          ConduitM Event Message m (Maybe Message)
 awaitMsg = do
   x <- await
   case x of
-   Just (MsgEvt msg) -> return $ Just $ MsgEvt msg
+   Just (MsgEvt msg) -> return $ Just msg
    Nothing -> return Nothing
    _ -> awaitMsg
 
@@ -98,7 +85,7 @@ handleMsg peerId = do
   helloResponse <- awaitMsg
 
   case helloResponse of
-   Just (MsgEvt Hello{}) -> do
+   Just Hello{} -> do
      bestBlock <- lift getBestBlock
      genesisBlockHash <- lift getGenesisBlockHash
      yield Status{
@@ -110,19 +97,19 @@ handleMsg peerId = do
        latestHash=blockHash bestBlock,
        genesisHash=genesisBlockHash
        }
-   Just (MsgEvt _) -> error "Peer sent message before handshake was complete"
+   Just _ -> error "Peer sent message before handshake was complete"
    Nothing -> error "Peer hung up before handshake was complete"
    
   statusResponse <- awaitMsg
 
   case statusResponse of
-   Just (MsgEvt (Status{latestHash=_, genesisHash=gh})) -> do
+   Just Status{latestHash=_, genesisHash=gh} -> do
      genesisBlockHash <- lift getGenesisBlockHash
      when (gh /= genesisBlockHash) $ error "Wrong genesis block hash!!!!!!!!"
      --lastBlockNumber <- liftIO $ fmap (maximum . map (blockDataNumber . blockBlockData)) $ fetchLastBlocks fetchLimit
      let lastBlockNumber = 0
      yield $ GetBlockHeaders (BlockNumber (max (lastBlockNumber - flags_syncBacktrackNumber) 0)) maxReturnedHeaders 0 Forward
-   Just (MsgEvt _) -> error "Peer sent message before handshake was complete"
+   Just _ -> error "Peer sent message before handshake was complete"
    Nothing -> error "Peer hung up before handshake was complete"
 
   handleEvents
@@ -245,8 +232,6 @@ runPeer ipAddress thePort otherPubKey myPriv = do
   logInfoN $ T.pack $ C.green " * " ++ "server pubkey is : " ++ C.yellow (take 30 (format $ pointToByteString otherPubKey) ++ "...")
 
   --cch <- mkCache 1024 "seed"
-
-  dataset <- return "" -- mmapFileByteString "dataset0" Nothing
 
   runTCPClientWithConnectTimeout (clientSettings (fromIntegral thePort) $ BC.pack ipAddress) 5 $ \server -> 
       runResourceT $ ((do

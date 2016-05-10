@@ -10,14 +10,13 @@ import Control.Monad
 import Control.Monad.IO.Class
 import Control.Monad.Logger
 import Control.Monad.State
-import Control.Monad.Trans
 import Data.Conduit
 import Data.List
 import Data.Maybe
 import qualified Data.Set as S
 import qualified Data.Text as T
+import Network.Kafka.Protocol (Offset)
 
-import qualified Blockchain.Colors as C
 import Blockchain.Context
 import Blockchain.Data.DataDefs
 import Blockchain.Data.Wire
@@ -48,6 +47,7 @@ setTitleAndProduceBlocks blocks = do
 
   return $ length newBlocks
 
+fetchLimit::Offset
 fetchLimit = 50
 
 
@@ -72,10 +72,10 @@ handleEvents = awaitForever $ \msg -> do
 
    MsgEvt (NewBlock block' _) -> do
               lift $ putNewBlk $ blockToNewBlk block'
-              let parentHash = blockDataParentHash $ blockBlockData block'
-              blockOffsets <- lift $ getBlockOffsetsForHashes [parentHash]
+              let parentHash' = blockDataParentHash $ blockBlockData block'
+              blockOffsets <- lift $ getBlockOffsetsForHashes [parentHash']
               case blockOffsets of
-               [x] | blockOffsetHash x == parentHash -> do
+               [x] | blockOffsetHash x == parentHash' -> do
                        _ <- lift $ setTitleAndProduceBlocks [block']
                        return ()
                _ -> do
@@ -127,7 +127,7 @@ handleEvents = awaitForever $ \msg -> do
                  yield $ GetBlockBodies neededHashes
 
    MsgEvt (GetBlockBodies []) -> yield $ BlockBodies []
-   MsgEvt (GetBlockBodies headers@(first:rest)) -> do
+   MsgEvt (GetBlockBodies headers@(first:_)) -> do
           offsets <- lift $ getOffsetsForHashes [first]
           case offsets of
             [] -> error $ "########### Warning: peer is asking for a block I don't have: " ++ format first

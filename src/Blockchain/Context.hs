@@ -14,7 +14,6 @@ module Blockchain.Context (
 import Control.Monad.Logger
 import Control.Monad.Trans.Resource
 import Control.Monad.State
-import qualified Data.ByteString as B
 
 import Blockchain.Data.BlockHeader
 import Blockchain.DB.SQLDB

@@ -86,7 +86,3 @@ connStr'::SQL.ConnectionString
 connStr' = BC.pack $ "host=localhost dbname=eth user=postgres password=api port=5432"
 
   
-getBlock::SQLDB->SQL.Key NewBlk->IO (Maybe Block)
-getBlock pool row = do
-    --pool <- getSQLDB      
-    fmap (fmap newBlkToBlock) $ SQL.runSqlPool (SQL.get row) pool
