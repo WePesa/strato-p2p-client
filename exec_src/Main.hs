@@ -3,6 +3,9 @@
 import Control.Monad.Logger
 import HFlags
 
+import Blockchain.Output
+import Executable.StratoP2PClient
+
 main::IO ()    
 main = do
   args <- $initHFlags "Strato Peer Client"
