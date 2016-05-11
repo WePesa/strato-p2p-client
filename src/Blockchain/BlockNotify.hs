@@ -24,13 +24,15 @@ import Blockchain.Data.DataDefs
 import Blockchain.Data.NewBlk
 import Blockchain.ExtWord
 import Blockchain.SHA
+import Blockchain.EthConf
 
 createBlockTrigger::(MonadIO m, MonadLogger m)=>
                     m ()
 createBlockTrigger = do
-  conn <- liftIO $ PS.connect PS.defaultConnectInfo {   --TODO add to config
-    PS.connectPassword = "api",
-    PS.connectDatabase = "eth"
+  conn <- liftIO $ PS.connect PS.defaultConnectInfo {
+    PS.connectUser = user . sqlConfig $ ethConf,
+    PS.connectPassword = password . sqlConfig $ ethConf,
+    PS.connectDatabase = database . sqlConfig $ ethConf
     }
   res2 <- liftIO $ PS.execute_ conn "DROP TRIGGER IF EXISTS client_block_notify ON new_blk;\n\
 \CREATE OR REPLACE FUNCTION client_block_notify() RETURNS TRIGGER AS $client_block_notify$ \n\ 
@@ -55,9 +57,10 @@ blockNotificationSource::(MonadIO m, MonadBaseControl IO m, MonadResource m, Mon
                          Source m Block
 blockNotificationSource = do
   conn <- liftIO $ PS.connect PS.defaultConnectInfo {
-            PS.connectPassword = "api",
-            PS.connectDatabase = "eth"
-           }
+    PS.connectUser = user . sqlConfig $ ethConf,
+    PS.connectPassword = password . sqlConfig $ ethConf,
+    PS.connectDatabase = database . sqlConfig $ ethConf
+    }
 
   _ <- register $ PS.close conn
 
@@ -82,7 +85,3 @@ getNewBlk' pool h = do
 
   return $ fmap SQL.entityVal res
 
-connStr'::SQL.ConnectionString
-connStr' = BC.pack $ "host=localhost dbname=eth user=postgres password=api port=5432"
-
-  

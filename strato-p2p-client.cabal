@@ -66,6 +66,7 @@ library
                  , text
                  , transformers
                  , ansi-wl-pprint
+                 , strato-conf
     exposed-modules: 
                    Blockchain.BlockNotify  
                    Blockchain.Context
