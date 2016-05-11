@@ -92,7 +92,7 @@ handleMsg peerId' = do
      yield Status{
        protocolVersion=fromIntegral ethVersion,
        networkID=if flags_cNetworkID == -1
-                 then (if flags_testnet then 0 else 1) 
+                 then (if flags_cTestnet then 0 else 1) 
                  else flags_cNetworkID,
                       totalDifficulty=0,
        latestHash=blockHash bestBlock,
