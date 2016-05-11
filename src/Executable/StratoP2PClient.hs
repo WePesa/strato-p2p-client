@@ -74,13 +74,13 @@ awaitMsg = do
 
 handleMsg::(MonadIO m, MonadState Context m, HasSQLDB m, MonadLogger m)=>
            Point->Conduit Event m Message
-handleMsg peerId = do
+handleMsg peerId' = do
   yield $ Hello {
               version = 4,
               clientId = "Ethereum(G)/v0.6.4//linux/Haskell",
               capability = [ETH ethVersion], -- , SHH shhVersion],
               port = 0,
-              nodeId = peerId
+              nodeId = peerId'
             }
 
   helloResponse <- awaitMsg

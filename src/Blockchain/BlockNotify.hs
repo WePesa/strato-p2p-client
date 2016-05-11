@@ -10,12 +10,10 @@ import Control.Monad
 import Control.Monad.Logger
 import Control.Monad.Trans.Resource
 import qualified Data.ByteString as B
-import qualified Data.ByteString.Char8 as BC
 import qualified Data.ByteString.Base16 as B16
 import qualified Data.Text as T
 import qualified Database.Persist as SQL
 import qualified Database.Persist.Postgresql as SQL
---import qualified Database.Persist.Sql as SQL
 import qualified Database.PostgreSQL.Simple as PS
 import           Database.PostgreSQL.Simple.Notification
 

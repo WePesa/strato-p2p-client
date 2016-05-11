@@ -3,7 +3,7 @@
 import Control.Monad.Logger
 import HFlags
 
-import Blockchain.Options
+import Blockchain.Options ()
 import Blockchain.Output
 import Executable.StratoP2PClient
 
