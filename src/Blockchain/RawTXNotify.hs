@@ -24,9 +24,10 @@ import Blockchain.EthConf
 createTXTrigger::(MonadIO m, MonadLogger m)=>
                  m ()
 createTXTrigger = do
-  conn <- liftIO $ PS.connect PS.defaultConnectInfo { --TODO add to configuration file
-    PS.connectPassword = "api",
-    PS.connectDatabase = "eth"
+  conn <- liftIO $ PS.connect PS.defaultConnectInfo {
+    PS.connectUser = user . sqlConfig $ ethConf,
+    PS.connectPassword = password . sqlConfig $ ethConf,
+    PS.connectDatabase = database . sqlConfig $ ethConf
     }
 
   res2 <- liftIO $ PS.execute_ conn "DROP TRIGGER IF EXISTS client_tx_notify ON raw_transaction;\n\
