@@ -101,7 +101,7 @@ handleEvents = awaitForever $ \msg -> do
           existingHashes <- lift $ fmap (map blockOffsetHash) $ getBlockOffsetsForHashes $ map fst blocksWithHashes
           let existingBlocks = map snd $ filter ((`elem` existingHashes) . fst) blocksWithHashes
                 
-          yield $ BlockHeaders $ nub $ map blockToBlockHeader  $ take max' $ filter ((/= MP.StateRoot "") . blockDataStateRoot . blockBlockData) existingBlocks
+          yield $ BlockHeaders $ nub $ map blockToBlockHeader  $ take max' existingBlocks
           return ()
 
    MsgEvt (BlockHeaders headers) -> do
