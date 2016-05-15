@@ -21,33 +21,10 @@ executable strato-p2p-client
     default-language: Haskell98
     build-depends: 
                    base >= 4 && < 5
-                 , base16-bytestring
-                 , blockapps-data
                  , blockapps-util
-                 , bytestring
-                 , conduit
-                 , conduit-extra
-                 , containers
-                 , crypto-pubkey
-                 , crypto-pubkey-types
-                 , crypto-random
-                 , ethereum-encryption
-                 , ethereum-rlp
-                 , haskoin
                  , hflags
-                 , merkle-patricia-db
                  , monad-logger
-                 , mtl
-                 , network
-                 , persistent-postgresql
-                 , random
-                 , resourcet
-                 , stm-conduit
-                 , strato-conf
                  , strato-p2p-client
-                 , text
-                 , time
-                 , transformers
     main-is: Main.hs
     ghc-options: -Wall -O2
     buildable: True
@@ -57,37 +34,36 @@ library
     default-language: Haskell98
     build-depends: 
                    base >= 4 && < 5
---                 , array
                  , base16-bytestring
-                 , binary
                  , blockapps-data
+                 , blockapps-util
                  , bytestring
                  , conduit
                  , conduit-combinators
                  , conduit-extra
                  , containers
-                 , cryptohash
+                 , crypto-pubkey
                  , crypto-pubkey-types
-                 , esqueleto
+                 , crypto-random
                  , ethereum-encryption
                  , ethereum-rlp
-                 , blockapps-util
+                 , haskoin
                  , hflags
-                 , lens
-                 , milena
+                 , lifted-base
                  , merkle-patricia-db
+                 , monad-control
                  , monad-logger
+                 , milena
                  , mtl
                  , network
                  , persistent
                  , persistent-postgresql
                  , postgresql-simple
+                 , random
                  , resourcet
-                 , safe
-                 , split
                  , stm-conduit
+                 , strato-conf
                  , text
-                 , time
                  , transformers
                  , ansi-wl-pprint
                  , strato-conf
@@ -103,6 +79,7 @@ library
                    Blockchain.PeerDB
                    Blockchain.RawTXNotify  
                    Blockchain.TCPClientWithTimeout
+                   Executable.StratoP2PClient
     ghc-options: -Wall -O2
     buildable: True
     hs-source-dirs: src

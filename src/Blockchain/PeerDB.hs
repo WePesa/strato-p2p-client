@@ -7,8 +7,6 @@ import System.IO.Unsafe
 
 import Blockchain.Data.DataDefs
     
-import qualified Data.ByteString.Char8 as BC
-
 import           Control.Monad.Logger    (runNoLoggingT)
 import qualified Database.Persist.Postgresql as SQL
 import Blockchain.EthConf
