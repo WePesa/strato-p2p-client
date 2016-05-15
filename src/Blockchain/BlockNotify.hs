@@ -68,12 +68,7 @@ getNewBlk' pool h = do
 blockNotificationSource::Source IO Block
 blockNotificationSource = do
 
-  conn <- liftIO $ PS.connect PS.defaultConnectInfo {
-            PS.connectUser = user . sqlConfig $ ethConf,
-            PS.connectPassword = password . sqlConfig $ ethConf,
-            PS.connectDatabase = database . sqlConfig $ ethConf
-           }
-
+  conn <- liftIO $ PS.connectPostgreSQL connStr 
   pool <- liftIO $ runNoLoggingT $ SQL.createPostgresqlPool connStr' 20
 
   liftIO $ createBlockTrigger conn

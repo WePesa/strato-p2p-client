@@ -48,13 +48,7 @@ txNotificationSource' pool conn = forever $ do
 
 txNotificationSource::Source IO RawTransaction
 txNotificationSource = do
-
-  conn <- liftIO $ PS.connect PS.defaultConnectInfo {
-            PS.connectUser = user . sqlConfig $ ethConf,
-            PS.connectPassword = password . sqlConfig $ ethConf,
-            PS.connectDatabase = database . sqlConfig $ ethConf
-           }
-
+  conn <- liftIO $ PS.connectPostgreSQL connStr
   pool <- liftIO $ runNoLoggingT $ SQL.createPostgresqlPool connStr' 20
 
   liftIO $ createTXTrigger conn
