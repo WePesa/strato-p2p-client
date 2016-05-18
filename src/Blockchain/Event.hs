@@ -26,7 +26,6 @@ import Blockchain.Data.BlockOffset
 import Blockchain.Data.NewBlk
 import Blockchain.Data.Transaction
 import Blockchain.DB.SQLDB
-import qualified Blockchain.Database.MerklePatricia as MP
 import Blockchain.Format
 import Blockchain.SHA
 import Blockchain.Stream.VMEvent
