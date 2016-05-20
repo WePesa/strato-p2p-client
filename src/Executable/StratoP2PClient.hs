@@ -49,7 +49,7 @@ import Blockchain.Event
 import Blockchain.ExtMergeSources
 import Blockchain.ExtWord
 import Blockchain.Format
-import Blockchain.Options
+import Blockchain.ClientOptions
 import Blockchain.PeerUrls
 import Blockchain.RawTXNotify
 --import Blockchain.SampleTransactions

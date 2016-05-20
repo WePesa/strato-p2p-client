@@ -69,6 +69,7 @@ library
                  , strato-conf
     exposed-modules: 
                    Blockchain.BlockNotify  
+                   Blockchain.ClientOptions
                    Blockchain.Context
                    Blockchain.Data.Peer
                    Blockchain.Data.Wire

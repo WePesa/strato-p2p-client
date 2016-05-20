@@ -27,6 +27,7 @@ import Blockchain.Data.NewBlk
 import Blockchain.Data.Transaction
 import Blockchain.DB.SQLDB
 import Blockchain.Format
+import Blockchain.Options
 import Blockchain.SHA
 import Blockchain.Stream.VMEvent
 import Blockchain.Verification
@@ -45,10 +46,6 @@ setTitleAndProduceBlocks blocks = do
     return ()
 
   return $ length newBlocks
-
-fetchLimit::Offset
-fetchLimit = 50
-
 
 filterRequestedBlocks::[SHA]->[Block]->[Block]
 filterRequestedBlocks _ [] = []
@@ -168,7 +165,7 @@ syncFetch::(MonadIO m, MonadState Context m)=>
 syncFetch = do
   blockHeaders' <- lift getBlockHeaders
   when (null blockHeaders') $ do
-    lastVMEvents <- liftIO $ fetchLastVMEvents fetchLimit
+    lastVMEvents <- liftIO $ fetchLastVMEvents $ fromIntegral flags_fetchLimit
     let lastBlocks = [b | ChainBlock b <- lastVMEvents]
     if null lastBlocks
       then error "overflow in syncFetch"
