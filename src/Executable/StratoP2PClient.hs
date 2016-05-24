@@ -47,6 +47,7 @@ import Blockchain.Display
 import Blockchain.Error
 import Blockchain.EthConf hiding (genesisHash,port)
 import Blockchain.Event
+import Blockchain.EventException
 import Blockchain.ExtMergeSources
 import Blockchain.ExtWord
 import Blockchain.Format
@@ -99,8 +100,8 @@ handleMsg peerId' = do
        latestHash=blockHash bestBlock,
        genesisHash=genesisBlockHash
        }
-   Just _ -> error "Peer sent message before handshake was complete"
-   Nothing -> error "Peer hung up before handshake was complete"
+   Just e -> throwIO $ EventBeforeHandshake e
+   Nothing -> throwIO $ PeerDisconnected
    
   statusResponse <- awaitMsg
 
@@ -111,8 +112,8 @@ handleMsg peerId' = do
      --lastBlockNumber <- liftIO $ fmap (maximum . map (blockDataNumber . blockBlockData)) $ fetchLastBlocks fetchLimit
      let lastBlockNumber = 0
      yield $ GetBlockHeaders (BlockNumber (max (lastBlockNumber - flags_syncBacktrackNumber) 0)) maxReturnedHeaders 0 Forward
-   Just _ -> error "Peer sent message before handshake was complete"
-   Nothing -> error "Peer hung up before handshake was complete"
+   Just e -> throwIO $ EventBeforeHandshake e
+   Nothing -> throwIO $ PeerDisconnected
 
   handleEvents
 

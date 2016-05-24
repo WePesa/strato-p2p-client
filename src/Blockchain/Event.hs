@@ -27,14 +27,11 @@ import Blockchain.Data.BlockOffset
 import Blockchain.Data.NewBlk
 import Blockchain.Data.Transaction
 import Blockchain.DB.SQLDB
+import Blockchain.EventException
 import Blockchain.Format
 import Blockchain.SHA
 import Blockchain.Stream.VMEvent
 import Blockchain.Verification
-
-data EventException = PeerDisconnected deriving (Show)
-
-instance Exception EventException where
 
 data Event = MsgEvt Message | NewTX RawTransaction | NewBL Block Integer deriving (Show)
 
