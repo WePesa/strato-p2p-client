@@ -1,4 +1,4 @@
-{-# LANGUAGE OverloadedStrings, TemplateHaskell, FlexibleContexts #-}
+{-# LANGUAGE FlexibleContexts, ScopedTypeVariables #-}
 
 module Executable.StratoP2PClient (
   stratoP2PClient
@@ -239,16 +239,16 @@ runPeer ipAddress thePort otherPubKey myPriv = do
       runResourceT $ ((do
         pool <- runNoLoggingT $ SQL.createPostgresqlPool
                 connStr' 20
-      
-        _ <- flip runStateT (Context pool [] []) $ ((do
-          (_, (outCxt, inCxt)) <-
-            transPipe liftIO (appSource server) $$+
-            transPipe liftIO (ethCryptConnect myPriv otherPubKey) `fuseUpstream`
-            transPipe liftIO (appSink server)
 
+        _ <- flip runStateT (Context pool [] []) $ ((do
+          (_, (outCxt, inCxt)) <- liftIO $ 
+            appSource server $$+
+            ethCryptConnect myPriv otherPubKey `fuseUpstream`
+            appSink server
+            
           let --handleError::SomeException->LoggingT IO a
               handleError e = error' (show (e::SomeException))
-
+          
           eventSource <- mergeSourcesCloseForAny [
             transPipe (flip catch handleError) (appSource server) =$=
             transPipe (flip catch handleError) (ethDecrypt inCxt) =$=
@@ -316,6 +316,10 @@ stratoP2PClient args = do
 
 
   forever $ do
-    runPeerInList peers maybePeerNumber
+    result <- try $ runPeerInList peers maybePeerNumber
+    case result of
+     Left e | Just (ErrorCall x) <- fromException e -> error x
+     Left e -> liftIO $ putStrLn $ "Connection ended: " ++ show (e::SomeException)
+     Right _ -> return ()
     when (isJust maybePeerNumber) $ liftIO $ threadDelay 1000000
 

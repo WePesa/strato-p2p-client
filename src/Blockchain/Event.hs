@@ -6,6 +6,7 @@ module Blockchain.Event (
   maxReturnedHeaders
   ) where
 
+import Control.Exception.Lifted
 import Control.Monad
 import Control.Monad.IO.Class
 import Control.Monad.Logger
@@ -30,6 +31,10 @@ import Blockchain.Format
 import Blockchain.SHA
 import Blockchain.Stream.VMEvent
 import Blockchain.Verification
+
+data EventException = PeerDisconnected deriving (Show)
+
+instance Exception EventException where
 
 data Event = MsgEvt Message | NewTX RawTransaction | NewBL Block Integer deriving (Show)
 
@@ -152,6 +157,8 @@ handleEvents = awaitForever $ \msg -> do
                       then yield $ GetBlockHeaders (BlockHash $ headerHash $ last headers) maxReturnedHeaders 0 Forward
                       else return ()
                  else yield $ GetBlockBodies $ map headerHash remainingHeaders
+
+   MsgEvt (Disconnect _) -> throwIO PeerDisconnected
 
    NewTX tx -> do
                when (not $ rawTransactionFromBlock tx) $ do
