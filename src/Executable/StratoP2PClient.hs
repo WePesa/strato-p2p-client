@@ -247,14 +247,11 @@ runPeer ipAddress thePort otherPubKey myPriv = do
             ethCryptConnect myPriv otherPubKey `fuseUpstream`
             appSink server
             
-          let --handleError::SomeException->LoggingT IO a
-              handleError e = error' (show (e::SomeException))
-          
           eventSource <- mergeSourcesCloseForAny [
-            transPipe (flip catch handleError) (appSource server) =$=
-            transPipe (flip catch handleError) (ethDecrypt inCxt) =$=
-            transPipe (flip catch handleError) bytesToMessages =$=
-            transPipe (flip catch handleError) (tap (displayMessage False "")) =$=
+            appSource server =$=
+            ethDecrypt inCxt =$=
+            bytesToMessages =$=
+            tap (displayMessage False "") =$=
             CL.map MsgEvt,
             txNotificationSource =$= CL.map NewTX,
             blockNotificationSource =$= CL.map (flip NewBL 0)
