@@ -320,7 +320,7 @@ stratoP2PClient args = do
     result <- try $ runPeerInList peers maybePeerNumber
     case result of
      Left e | Just (ErrorCall x) <- fromException e -> error x
-     Left e -> liftIO $ putStrLn $ "Connection ended: " ++ show (e::SomeException)
+     Left e -> logInfoN $ T.pack $ "Connection ended: " ++ show (e::SomeException)
      Right _ -> return ()
     when (isJust maybePeerNumber) $ liftIO $ threadDelay 1000000
 
