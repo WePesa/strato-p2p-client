@@ -7,6 +7,6 @@ import Control.Exception.Lifted
 
 import Blockchain.Data.Wire
 
-data EventException = PeerDisconnected | EventBeforeHandshake Message deriving (Show)
+data EventException = PeerDisconnected | EventBeforeHandshake Message | WrongGenesisBlock deriving (Show)
 
 instance Exception EventException where

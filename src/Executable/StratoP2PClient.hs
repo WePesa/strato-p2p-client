@@ -108,7 +108,7 @@ handleMsg peerId' = do
   case statusResponse of
    Just Status{latestHash=_, genesisHash=gh} -> do
      genesisBlockHash <- lift getGenesisBlockHash
-     when (gh /= genesisBlockHash) $ error "Wrong genesis block hash!!!!!!!!"
+     when (gh /= genesisBlockHash) $ throwIO WrongGenesisBlock
      --lastBlockNumber <- liftIO $ fmap (maximum . map (blockDataNumber . blockBlockData)) $ fetchLastBlocks fetchLimit
      let lastBlockNumber = 0
      yield $ GetBlockHeaders (BlockNumber (max (lastBlockNumber - flags_syncBacktrackNumber) 0)) maxReturnedHeaders 0 Forward
