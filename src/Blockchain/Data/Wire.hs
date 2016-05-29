@@ -4,6 +4,7 @@
 
 module Blockchain.Data.Wire (
   Message(..),
+  TerminationReason(..),
   BlockHashOrNumber(..),
   Direction(..),
   Capability(..),

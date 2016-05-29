@@ -15,6 +15,7 @@ import Data.List
 import Data.Maybe
 import qualified Data.Set as S
 import qualified Data.Text as T
+import Data.Time.Clock
 import Network.Kafka.Protocol (Offset)
 
 import Blockchain.Context
@@ -106,6 +107,7 @@ handleEvents = awaitForever $ \msg -> do
           return ()
 
    MsgEvt (BlockHeaders headers) -> do
+               clearActionTimestamp
                alreadyRequestedHeaders <- lift getBlockHeaders
                when (null alreadyRequestedHeaders) $ do
                  let headerHashes = S.fromList $ map headerHash headers
@@ -124,6 +126,7 @@ handleEvents = awaitForever $ \msg -> do
                  let neededHashes = map headerHash neededHeaders
                  --when (length neededHeaders /= length (S.toList $ S.fromList neededHashes)) $ error "duplicates in neededHeaders"
                  yield $ GetBlockBodies neededHashes
+                 stampActionTimestamp
 
    MsgEvt (GetBlockBodies []) -> yield $ BlockBodies []
    MsgEvt (GetBlockBodies headers@(first:_)) -> do
@@ -136,8 +139,9 @@ handleEvents = awaitForever $ \msg -> do
               let requestedBlocks = filterRequestedBlocks headers blocks
               yield $ BlockBodies $ map blockToBody requestedBlocks
 
-   MsgEvt (BlockBodies []) -> return ()
+   MsgEvt (BlockBodies []) -> clearActionTimestamp
    MsgEvt (BlockBodies bodies) -> do
+               clearActionTimestamp
                headers <- lift getBlockHeaders
                let verified = and $ zipWith (\h b -> transactionsRoot h == transactionsVerificationValue (fst b)) headers bodies
                when (not verified) $ error "headers don't match bodies"
@@ -149,16 +153,30 @@ handleEvents = awaitForever $ \msg -> do
                if null remainingHeaders
                  then 
                     if newCount > 0
-                      then yield $ GetBlockHeaders (BlockHash $ headerHash $ last headers) maxReturnedHeaders 0 Forward
+                      then do
+                        yield $ GetBlockHeaders (BlockHash $ headerHash $ last headers) maxReturnedHeaders 0 Forward
+                        stampActionTimestamp
                       else return ()
-                 else yield $ GetBlockBodies $ map headerHash remainingHeaders
+                 else do
+                   yield $ GetBlockBodies $ map headerHash remainingHeaders
+                   stampActionTimestamp
 
    NewTX tx -> do
                when (not $ rawTransactionFromBlock tx) $ do
                    yield $ Transactions [rawTX2TX tx]
    NewBL b d -> yield $ NewBlock b d
 
-   TimerEvt -> logInfoN "timer hit"
+   TimerEvt -> do
+     maybeOldTS <- getActionTimestamp
+     case maybeOldTS of
+      Just oldTS -> do
+        logInfoN "timer set, checking time"
+        ts <- liftIO getCurrentTime
+        when (ts `diffUTCTime` oldTS > 60) $ do
+          yield $ Disconnect UselessPeer
+          error "Peer did not respond"
+      Nothing -> return ()
+                 
 
    event -> liftIO $ error $ "unrecognized event: " ++ show event
 
@@ -177,3 +195,4 @@ syncFetch = do
       else do
         let lastBlockNumber = blockDataNumber . blockBlockData . last $ lastBlocks
         yield $ GetBlockHeaders (BlockNumber lastBlockNumber) maxReturnedHeaders 0 Forward
+        stampActionTimestamp

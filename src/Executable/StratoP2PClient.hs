@@ -111,6 +111,7 @@ handleMsg peerId' = do
      --lastBlockNumber <- liftIO $ fmap (maximum . map (blockDataNumber . blockBlockData)) $ fetchLastBlocks fetchLimit
      let lastBlockNumber = 0
      yield $ GetBlockHeaders (BlockNumber (max (lastBlockNumber - flags_syncBacktrackNumber) 0)) maxReturnedHeaders 0 Forward
+     stampActionTimestamp
    Just _ -> error "Peer sent message before handshake was complete"
    Nothing -> error "Peer hung up before handshake was complete"
 
