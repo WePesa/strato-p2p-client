@@ -7,13 +7,18 @@ module Blockchain.Context (
   addDebugMsg,
   getBlockHeaders,
   putBlockHeaders,
-  clearDebugMsg
+  clearDebugMsg,
+  stampActionTimestamp,
+  getActionTimestamp,
+  clearActionTimestamp
   ) where
 
 
 import Control.Monad.Logger
 import Control.Monad.Trans.Resource
 import Control.Monad.State
+import Data.Time.Clock
+import Data.Time.Clock.POSIX
 
 import Blockchain.Data.BlockHeader
 import Blockchain.DB.SQLDB
@@ -24,7 +29,8 @@ data Context =
   Context {
     contextSQLDB::SQLDB,
     vmTrace::[String],
-    blockHeaders::[BlockHeader]
+    blockHeaders::[BlockHeader],
+    actionTimestamp::Maybe UTCTime
     }
 
 type ContextM = StateT Context (ResourceT (LoggingT IO))
@@ -79,3 +85,21 @@ clearDebugMsg = do
   cxt <- get
   put cxt{vmTrace=[]}
 
+stampActionTimestamp::(MonadIO m, MonadState Context m)=>
+                      m ()
+stampActionTimestamp = do
+  cxt <- get
+  ts <- liftIO $ getCurrentTime
+  put cxt{actionTimestamp=Just ts}
+
+getActionTimestamp::MonadState Context m=>
+                    m (Maybe UTCTime)
+getActionTimestamp = do
+  cxt <- get
+  return $ actionTimestamp cxt
+
+clearActionTimestamp::MonadState Context m=>
+                      m ()
+clearActionTimestamp = do
+  cxt <- get
+  put cxt{actionTimestamp=Nothing}

@@ -64,6 +64,7 @@ library
                  , stm-conduit
                  , strato-conf
                  , text
+                 , time
                  , transformers
                  , ansi-wl-pprint
                  , strato-conf
