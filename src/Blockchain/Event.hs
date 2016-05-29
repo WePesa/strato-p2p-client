@@ -31,7 +31,7 @@ import Blockchain.SHA
 import Blockchain.Stream.VMEvent
 import Blockchain.Verification
 
-data Event = MsgEvt Message | NewTX RawTransaction | NewBL Block Integer deriving (Show)
+data Event = MsgEvt Message | NewTX RawTransaction | NewBL Block Integer | TimerEvt deriving (Show)
 
 setTitleAndProduceBlocks::(MonadLogger m, HasSQLDB m)=>[Block]->m Int
 setTitleAndProduceBlocks blocks = do
@@ -157,7 +157,9 @@ handleEvents = awaitForever $ \msg -> do
                when (not $ rawTransactionFromBlock tx) $ do
                    yield $ Transactions [rawTX2TX tx]
    NewBL b d -> yield $ NewBlock b d
-           
+
+   TimerEvt -> logInfoN "timer hit"
+
    event -> liftIO $ error $ "unrecognized event: " ++ show event
 
 

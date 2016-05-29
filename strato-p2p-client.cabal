@@ -80,6 +80,8 @@ library
                    Blockchain.RawTXNotify  
                    Blockchain.TCPClientWithTimeout
                    Executable.StratoP2PClient
+    other-modules:
+                   Blockchain.TimerSource
     ghc-options: -Wall -O2
     buildable: True
     hs-source-dirs: src
