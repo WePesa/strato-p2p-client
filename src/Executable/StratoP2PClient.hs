@@ -73,14 +73,14 @@ awaitMsg = do
    _ -> awaitMsg
 
 handleMsg::(MonadIO m, MonadState Context m, HasSQLDB m, MonadLogger m)=>
-           Point->Conduit Event m Message
-handleMsg peerId' = do
+           PPeer->Conduit Event m Message
+handleMsg peer = do
   yield $ Hello {
               version = 4,
               clientId = "Ethereum(G)/v0.6.4//linux/Haskell",
               capability = [ETH ethVersion], -- , SHH shhVersion],
               port = 0,
-              nodeId = peerId'
+              nodeId = pPeerPubkey peer
             }
 
   helloResponse <- awaitMsg
@@ -113,7 +113,7 @@ handleMsg peerId' = do
    Just _ -> error "Peer sent message before handshake was complete"
    Nothing -> error "Peer hung up before handshake was complete"
 
-  handleEvents
+  handleEvents peer
 
 
 
@@ -219,12 +219,12 @@ hPubKeyToPubKey pubKey = Point (fromIntegral x) (fromIntegral y)
 -}
   
 runPeer::(MonadIO m, MonadBaseControl IO m, MonadLogger m, MonadThrow m)=>
-         String->PortNumber->Point->PrivateNumber->m ()
+         PPeer->PortNumber->Point->PrivateNumber->m ()
 --runPeer::String->PortNumber->Point->PrivateNumber->LoggingT IO ()
-runPeer ipAddress thePort otherPubKey myPriv = do
+runPeer peer thePort otherPubKey myPriv = do
   logInfoN $ T.pack $ C.blue "Welcome to strato-p2p-client"
   logInfoN $ T.pack $ C.blue "============================"
-  logInfoN $ T.pack $ C.green " * " ++ "Attempting to connect to " ++ C.yellow (ipAddress ++ ":" ++ show thePort)
+  logInfoN $ T.pack $ C.green " * " ++ "Attempting to connect to " ++ C.yellow (T.unpack (pPeerIp peer) ++ ":" ++ show thePort)
 
   let myPublic = calculatePublic theCurve myPriv
   logInfoN $ T.pack $ C.green " * " ++ "my pubkey is: " ++ C.yellow (take 30 (format $ pointToByteString myPublic) ++ "...")
@@ -234,7 +234,7 @@ runPeer ipAddress thePort otherPubKey myPriv = do
 
   --cch <- mkCache 1024 "seed"
 
-  runTCPClientWithConnectTimeout (clientSettings (fromIntegral thePort) $ BC.pack ipAddress) 5 $ \server -> 
+  runTCPClientWithConnectTimeout (clientSettings (fromIntegral thePort) $ BC.pack $ T.unpack $ pPeerIp peer) 5 $ \server -> 
       runResourceT $ ((do
         pool <- runNoLoggingT $ SQL.createPostgresqlPool
                 connStr' 20
@@ -259,7 +259,7 @@ runPeer ipAddress thePort otherPubKey myPriv = do
             ] 2
 
           eventSource =$=
-            handleMsg myPublic =$=
+            handleMsg peer =$=
             transPipe lift (tap (displayMessage True "")) =$=
             messagesToBytes =$=
             ethEncrypt outCxt $$
@@ -269,8 +269,8 @@ runPeer ipAddress thePort otherPubKey myPriv = do
         return ()))
 
 getPubKeyRunPeer::(MonadIO m, MonadBaseControl IO m, MonadLogger m, MonadThrow m)=>
-                  String->PortNumber->Maybe Point->m ()
-getPubKeyRunPeer ipAddress thePort maybePubKey = do
+                  PPeer->Maybe Point->m ()
+getPubKeyRunPeer peer maybePubKey = do
   entropyPool <- liftIO createEntropyPool
 
   let g = cprgCreate entropyPool :: SystemRNG
@@ -278,26 +278,27 @@ getPubKeyRunPeer ipAddress thePort maybePubKey = do
 
   case maybePubKey of
     Nothing -> do
-      logInfoN $ T.pack $ "Attempting to connect to " ++ show ipAddress ++ ":" ++ show thePort ++ ", but I don't have the pubkey.  I will try to use a UDP ping to get the pubkey."
-      eitherOtherPubKey <- liftIO $ getServerPubKey (fromMaybe (error "invalid private number in main") $ H.makePrvKey $ fromIntegral myPriv) ipAddress thePort
+      logInfoN $ T.pack $ "Attempting to connect to " ++ T.unpack (pPeerIp peer) ++ ":" ++ show (pPeerPort peer) ++ ", but I don't have the pubkey.  I will try to use a UDP ping to get the pubkey."
+      eitherOtherPubKey <- liftIO $ getServerPubKey (fromMaybe (error "invalid private number in main") $ H.makePrvKey $ fromIntegral myPriv) (T.unpack $ pPeerIp peer) (fromIntegral $ pPeerPort peer)
       case eitherOtherPubKey of
             Right otherPubKey -> do
               logInfoN $ T.pack $ "#### Success, the pubkey has been obtained: " ++ (format $ pointToByteString otherPubKey)
-              runPeer ipAddress thePort otherPubKey myPriv
+              runPeer peer (fromIntegral $ pPeerPort peer) otherPubKey myPriv
             Left e -> logInfoN $ T.pack $ "Error, couldn't get public key for peer: " ++ show e
-    Just otherPubKey -> runPeer ipAddress thePort otherPubKey myPriv
+    Just otherPubKey -> runPeer peer (fromIntegral $ pPeerPort peer) otherPubKey myPriv
                       
 
 runPeerInList::(MonadIO m, MonadBaseControl IO m, MonadLogger m, MonadThrow m)=>
-               [(String, PortNumber, Maybe Point)]->Maybe Int->m ()
-runPeerInList addresses maybePeerNumber = do
+               --[(String, PortNumber, Maybe Point)]->Maybe Int->m ()
+               [(PPeer ,Maybe Point)]->Maybe Int->m ()
+runPeerInList peers maybePeerNumber = do
   peerNumber <- case maybePeerNumber of
                   Just x -> return x
-                  Nothing -> liftIO $ randomRIO (0, length addresses - 1)
+                  Nothing -> liftIO $ randomRIO (0, length peers - 1)
 
-  let (ipAddress, thePort, maybePubKey) = addresses !! peerNumber
+  let thePeer = peers !! peerNumber
 
-  getPubKeyRunPeer ipAddress thePort maybePubKey
+  getPubKeyRunPeer (fst thePeer) (snd thePeer)
                
 stratoP2PClient::[String]->LoggingT IO ()    
 stratoP2PClient args = do
@@ -308,6 +309,16 @@ stratoP2PClient args = do
           _ -> error "usage: ethereumH [servernum]"
 
   if flags_sqlPeers
-    then sequence_ $ repeat $ runPeerInList (map (\peer -> (T.unpack $ pPeerIp peer, fromIntegral $ pPeerPort peer, Just $ pPeerPubkey peer)) ipAddressesDB) maybePeerNumber
-    else sequence_ $ repeat $ runPeerInList (map (\peer -> (fst peer, snd peer, Nothing)) ipAddresses) maybePeerNumber
+    then sequence_ $ repeat $ runPeerInList (map (\peer -> (peer, Just $ pPeerPubkey peer)) ipAddressesDB) maybePeerNumber
+    else sequence_ $ repeat $ runPeerInList (map (\peer -> (PPeer{
+                                                               pPeerPubkey=Point 0 0,
+                                                               pPeerIp=T.pack $ fst peer,
+                                                               pPeerPort=fromIntegral $ snd peer,
+                                                               pPeerNumSessions=error "numSessions unknown",
+                                                               pPeerLastMsg=error "last message unknown",
+                                                               pPeerLastMsgTime=error "last msg time unknown",
+                                                               pPeerLastTotalDifficulty=error "total difficulty unknown",
+                                                               pPeerLastBestBlockHash=error "last best block hash unknown",
+                                                               pPeerVersion=error "peer version unknown"
+                                                               }, Nothing)) ipAddresses) maybePeerNumber
 

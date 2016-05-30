@@ -61,8 +61,8 @@ maxReturnedHeaders::Int
 maxReturnedHeaders=1000
 
 handleEvents::(MonadIO m, HasSQLDB m, MonadState Context m, MonadLogger m)=>
-              Conduit Event m Message
-handleEvents = awaitForever $ \msg -> do
+              PPeer->Conduit Event m Message
+handleEvents peer = awaitForever $ \msg -> do
   case msg of
    MsgEvt Hello{} -> error "A hello message appeared after the handshake"
    MsgEvt Status{} -> error "A status message appeared after the handshake"
