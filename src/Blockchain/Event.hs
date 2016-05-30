@@ -25,6 +25,7 @@ import Blockchain.Data.BlockHeader
 import Blockchain.Data.BlockOffset
 import Blockchain.Data.NewBlk
 import Blockchain.Data.Transaction
+import qualified Blockchain.Data.TXOrigin as Origin
 import Blockchain.DB.SQLDB
 import Blockchain.Format
 import Blockchain.SHA
@@ -67,7 +68,7 @@ handleEvents = awaitForever $ \msg -> do
    MsgEvt Status{} -> error "A status message appeared after the handshake"
    MsgEvt Ping -> yield Pong
 
-   MsgEvt (Transactions txs) -> lift $ insertTXIfNew Nothing txs
+   MsgEvt (Transactions txs) -> lift $ insertTXIfNew (Origin.PeerString "<temporaryPlaceholder>") Nothing txs
 
    MsgEvt (NewBlock block' _) -> do
               lift $ putNewBlk $ blockToNewBlk block'
@@ -154,8 +155,16 @@ handleEvents = awaitForever $ \msg -> do
                  else yield $ GetBlockBodies $ map headerHash remainingHeaders
 
    NewTX tx -> do
-               when (not $ rawTransactionFromBlock tx) $ do
-                   yield $ Transactions [rawTX2TX tx]
+     let shouldSend =
+           case rawTransactionOrigin tx of
+            Origin.PeerString ps -> True
+            Origin.API -> True
+            Origin.BlockHash _ -> False
+
+            
+     when shouldSend $
+        yield $ Transactions [rawTX2TX tx]
+      
    NewBL b d -> yield $ NewBlock b d
            
    event -> liftIO $ error $ "unrecognized event: " ++ show event
