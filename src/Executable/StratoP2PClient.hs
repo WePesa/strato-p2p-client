@@ -4,6 +4,7 @@ module Executable.StratoP2PClient (
   stratoP2PClient
   ) where
 
+import Control.Concurrent (forkIO)
 import Control.Exception.Lifted
 import Control.Monad.IO.Class
 import Control.Monad.Logger
@@ -57,6 +58,7 @@ import Blockchain.PeerDB
 import Blockchain.TCPClientWithTimeout
 import Blockchain.Util
 
+import API.StratoP2PClient
 --import Debug.Trace
 
 import Data.Maybe
@@ -301,6 +303,11 @@ runPeerInList addresses maybePeerNumber = do
                
 stratoP2PClient::[String]->LoggingT IO ()    
 stratoP2PClient args = do
+  logInfoN "Starting P2P (Client) HTTP Server"
+  
+  _ <- liftIO . forkIO $ stratoP2PClientAPIMain
+
+
   let maybePeerNumber =
         case args of
           [] -> Nothing

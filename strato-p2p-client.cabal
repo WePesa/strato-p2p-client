@@ -67,6 +67,11 @@ library
                  , transformers
                  , ansi-wl-pprint
                  , strato-conf
+                 , servant-server
+                 , wai
+                 , warp
+                 , aeson
+
     exposed-modules: 
                    Blockchain.BlockNotify  
                    Blockchain.Context
@@ -80,6 +85,11 @@ library
                    Blockchain.RawTXNotify  
                    Blockchain.TCPClientWithTimeout
                    Executable.StratoP2PClient
+                   API.StratoP2PClient
+                   API.Route.Status
+                   API.Handler.Status
+                   API.Model.Status
+
     ghc-options: -Wall -O2
     buildable: True
     hs-source-dirs: src
