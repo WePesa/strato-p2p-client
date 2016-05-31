@@ -311,7 +311,7 @@ stratoP2PClient args = do
   if flags_sqlPeers
     then sequence_ $ repeat $ runPeerInList (map (\peer -> (peer, Just $ pPeerPubkey peer)) ipAddressesDB) maybePeerNumber
     else sequence_ $ repeat $ runPeerInList (map (\peer -> (PPeer{
-                                                               pPeerPubkey=Point 0 0,
+                                                               pPeerPubkey=error "peer pubkey not set",
                                                                pPeerIp=T.pack $ fst peer,
                                                                pPeerPort=fromIntegral $ snd peer,
                                                                pPeerNumSessions=error "numSessions unknown",
