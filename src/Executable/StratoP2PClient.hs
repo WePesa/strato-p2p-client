@@ -73,14 +73,14 @@ awaitMsg = do
    _ -> awaitMsg
 
 handleMsg::(MonadIO m, MonadState Context m, HasSQLDB m, MonadLogger m)=>
-           PPeer->Conduit Event m Message
-handleMsg peer = do
+           Point->PPeer->Conduit Event m Message
+handleMsg myId peer = do
   yield $ Hello {
               version = 4,
               clientId = "Ethereum(G)/v0.6.4//linux/Haskell",
               capability = [ETH ethVersion], -- , SHH shhVersion],
               port = 0,
-              nodeId = pPeerPubkey peer
+              nodeId = myId
             }
 
   helloResponse <- awaitMsg
@@ -259,7 +259,7 @@ runPeer peer thePort otherPubKey myPriv = do
             ] 2
 
           eventSource =$=
-            handleMsg peer =$=
+            handleMsg myPublic peer =$=
             transPipe lift (tap (displayMessage True "")) =$=
             messagesToBytes =$=
             ethEncrypt outCxt $$
