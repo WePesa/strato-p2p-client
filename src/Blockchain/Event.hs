@@ -60,6 +60,9 @@ filterRequestedBlocks hashes (_:bRest) = filterRequestedBlocks hashes bRest
 maxReturnedHeaders::Int
 maxReturnedHeaders=1000
 
+peerString::PPeer->String
+peerString peer = show (pPeerPubkey peer) ++ "@" ++ T.unpack (pPeerIp peer) ++ ":" ++ show (pPeerPort peer)
+
 handleEvents::(MonadIO m, HasSQLDB m, MonadState Context m, MonadLogger m)=>
               PPeer->Conduit Event m Message
 handleEvents peer = awaitForever $ \msg -> do
@@ -68,7 +71,7 @@ handleEvents peer = awaitForever $ \msg -> do
    MsgEvt Status{} -> error "A status message appeared after the handshake"
    MsgEvt Ping -> yield Pong
 
-   MsgEvt (Transactions txs) -> lift $ insertTXIfNew (Origin.PeerString "<temporaryPlaceholder>") Nothing txs
+   MsgEvt (Transactions txs) -> lift $ insertTXIfNew (Origin.PeerString $  peerString peer) Nothing txs
 
    MsgEvt (NewBlock block' _) -> do
               lift $ putNewBlk $ blockToNewBlk block'
@@ -157,7 +160,7 @@ handleEvents peer = awaitForever $ \msg -> do
    NewTX tx -> do
      let shouldSend =
            case rawTransactionOrigin tx of
-            Origin.PeerString ps -> True
+            Origin.PeerString ps -> ps /= peerString peer
             Origin.API -> True
             Origin.BlockHash _ -> False
 
