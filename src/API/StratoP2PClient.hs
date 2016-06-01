@@ -1,11 +1,14 @@
 {-# LANGUAGE OverloadedStrings, TemplateHaskell, FlexibleContexts #-}
 
 module API.StratoP2PClient (
-   stratoP2PClientAPIMain
+   stratoP2PClientAPIMain,
+   P2PClientStatus(..),
+   statusAPI
   ) where
 
 import API.Route.Status
 import API.Handler.Status
+import API.Model.Status
 
 import Servant
 import Network.Wai

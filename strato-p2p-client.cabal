@@ -67,11 +67,12 @@ library
                  , transformers
                  , ansi-wl-pprint
                  , strato-conf
+                 , servant-client
                  , servant-server
                  , wai
                  , warp
                  , aeson
-
+                 , either
     exposed-modules: 
                    Blockchain.BlockNotify  
                    Blockchain.Context
@@ -86,6 +87,7 @@ library
                    Blockchain.TCPClientWithTimeout
                    Executable.StratoP2PClient
                    API.StratoP2PClient
+                   API.StratoP2PClientClient
                    API.Route.Status
                    API.Handler.Status
                    API.Model.Status
