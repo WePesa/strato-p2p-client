@@ -6,6 +6,7 @@ module Blockchain.Event (
   maxReturnedHeaders
   ) where
 
+import Control.Exception.Lifted
 import Control.Monad
 import Control.Monad.IO.Class
 import Control.Monad.Logger
@@ -26,6 +27,7 @@ import Blockchain.Data.BlockOffset
 import Blockchain.Data.NewBlk
 import Blockchain.Data.Transaction
 import Blockchain.DB.SQLDB
+import Blockchain.EventException
 import Blockchain.Format
 import Blockchain.SHA
 import Blockchain.Stream.VMEvent
@@ -157,8 +159,13 @@ handleEvents = awaitForever $ \msg -> do
                  else yield $ GetBlockBodies $ map headerHash remainingHeaders
 
    NewTX _ -> return ()
-{-               when (not $ rawTransactionFromBlock tx) $ do
-                   yield $ Transactions [rawTX2TX tx] -}
+
+   MsgEvt (Disconnect _) -> throwIO PeerDisconnected
+
+   NewTX tx -> do
+               when (not $ rawTransactionFromBlock tx) $ do
+                   yield $ Transactions [rawTX2TX tx]
+
    NewBL b d -> yield $ NewBlock b d
            
    event -> liftIO $ error $ "unrecognized event: " ++ show event
