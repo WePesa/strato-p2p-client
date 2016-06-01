@@ -1,9 +1,10 @@
-{-# LANGUAGE OverloadedStrings, TemplateHaskell, FlexibleContexts #-}
+{-# LANGUAGE FlexibleContexts, ScopedTypeVariables, PatternGuards #-}
 
 module Executable.StratoP2PClient (
   stratoP2PClient
   ) where
 
+import Control.Concurrent (threadDelay)
 import Control.Exception.Lifted
 import Control.Monad.IO.Class
 import Control.Monad.Logger
@@ -43,9 +44,9 @@ import Blockchain.DB.DetailsDB
 import Blockchain.DB.SQLDB
 --import Blockchain.DB.ModifyStateDB
 import Blockchain.Display
-import Blockchain.Error
 import Blockchain.EthConf hiding (genesisHash,port)
 import Blockchain.Event
+import Blockchain.EventException
 import Blockchain.ExtMergeSources
 import Blockchain.ExtWord
 import Blockchain.Format
@@ -98,20 +99,20 @@ handleMsg myId peer = do
        latestHash=blockHash bestBlock,
        genesisHash=genesisBlockHash
        }
-   Just _ -> error "Peer sent message before handshake was complete"
-   Nothing -> error "Peer hung up before handshake was complete"
+   Just e -> throwIO $ EventBeforeHandshake e
+   Nothing -> throwIO $ PeerDisconnected
    
   statusResponse <- awaitMsg
 
   case statusResponse of
    Just Status{latestHash=_, genesisHash=gh} -> do
      genesisBlockHash <- lift getGenesisBlockHash
-     when (gh /= genesisBlockHash) $ error "Wrong genesis block hash!!!!!!!!"
+     when (gh /= genesisBlockHash) $ throwIO WrongGenesisBlock
      --lastBlockNumber <- liftIO $ fmap (maximum . map (blockDataNumber . blockBlockData)) $ fetchLastBlocks fetchLimit
      let lastBlockNumber = 0
      yield $ GetBlockHeaders (BlockNumber (max (lastBlockNumber - flags_syncBacktrackNumber) 0)) maxReturnedHeaders 0 Forward
-   Just _ -> error "Peer sent message before handshake was complete"
-   Nothing -> error "Peer hung up before handshake was complete"
+   Just e -> throwIO $ EventBeforeHandshake e
+   Nothing -> throwIO $ PeerDisconnected
 
   handleEvents peer
 
@@ -238,21 +239,18 @@ runPeer peer thePort otherPubKey myPriv = do
       runResourceT $ ((do
         pool <- runNoLoggingT $ SQL.createPostgresqlPool
                 connStr' 20
-      
+
         _ <- flip runStateT (Context pool [] []) $ ((do
-          (_, (outCxt, inCxt)) <-
-            transPipe liftIO (appSource server) $$+
-            transPipe liftIO (ethCryptConnect myPriv otherPubKey) `fuseUpstream`
-            transPipe liftIO (appSink server)
-
-          let --handleError::SomeException->LoggingT IO a
-              handleError e = error' (show (e::SomeException))
-
+          (_, (outCxt, inCxt)) <- liftIO $ 
+            appSource server $$+
+            ethCryptConnect myPriv otherPubKey `fuseUpstream`
+            appSink server
+            
           eventSource <- mergeSourcesCloseForAny [
-            transPipe (flip catch handleError) (appSource server) =$=
-            transPipe (flip catch handleError) (ethDecrypt inCxt) =$=
-            transPipe (flip catch handleError) bytesToMessages =$=
-            transPipe (flip catch handleError) (tap (displayMessage False "")) =$=
+            appSource server =$=
+            ethDecrypt inCxt =$=
+            bytesToMessages =$=
+            tap (displayMessage False "") =$=
             CL.map MsgEvt,
             txNotificationSource =$= CL.map NewTX,
             blockNotificationSource =$= CL.map (flip NewBL 0)
@@ -308,17 +306,27 @@ stratoP2PClient args = do
           [x] -> return $ read x
           _ -> error "usage: ethereumH [servernum]"
 
-  if flags_sqlPeers
-    then sequence_ $ repeat $ runPeerInList (map (\peer -> (peer, Just $ pPeerPubkey peer)) ipAddressesDB) maybePeerNumber
-    else sequence_ $ repeat $ runPeerInList (map (\peer -> (PPeer{
-                                                               pPeerPubkey=error "peer pubkey not set",
-                                                               pPeerIp=T.pack $ fst peer,
-                                                               pPeerPort=fromIntegral $ snd peer,
-                                                               pPeerNumSessions=error "numSessions unknown",
-                                                               pPeerLastMsg=error "last message unknown",
-                                                               pPeerLastMsgTime=error "last msg time unknown",
-                                                               pPeerLastTotalDifficulty=error "total difficulty unknown",
-                                                               pPeerLastBestBlockHash=error "last best block hash unknown",
-                                                               pPeerVersion=error "peer version unknown"
-                                                               }, Nothing)) ipAddresses) maybePeerNumber
+  let peers =
+        if flags_sqlPeers
+        then map (\peer -> (peer, Just $ pPeerPubkey peer)) ipAddressesDB
+        else map (\peer -> (PPeer{
+                               pPeerPubkey=error "peer pubkey not set",
+                               pPeerIp=T.pack $ fst peer,
+                               pPeerPort=fromIntegral $ snd peer,
+                               pPeerNumSessions=error "numSessions unknown",
+                               pPeerLastMsg=error "last message unknown",
+                               pPeerLastMsgTime=error "last msg time unknown",
+                               pPeerLastTotalDifficulty=error "total difficulty unknown",
+                               pPeerLastBestBlockHash=error "last best block hash unknown",
+                               pPeerVersion=error "peer version unknown"
+                               }, Nothing)) ipAddresses
+
+
+  forever $ do
+    result <- try $ runPeerInList peers maybePeerNumber
+    case result of
+     Left e | Just (ErrorCall x) <- fromException e -> error x
+     Left e -> logInfoN $ T.pack $ "Connection ended: " ++ show (e::SomeException)
+     Right _ -> return ()
+    when (isJust maybePeerNumber) $ liftIO $ threadDelay 1000000
 

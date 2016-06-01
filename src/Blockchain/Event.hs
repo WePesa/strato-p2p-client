@@ -6,6 +6,7 @@ module Blockchain.Event (
   maxReturnedHeaders
   ) where
 
+import Control.Exception.Lifted
 import Control.Monad
 import Control.Monad.IO.Class
 import Control.Monad.Logger
@@ -27,6 +28,7 @@ import Blockchain.Data.NewBlk
 import Blockchain.Data.Transaction
 import qualified Blockchain.Data.TXOrigin as Origin
 import Blockchain.DB.SQLDB
+import Blockchain.EventException
 import Blockchain.Format
 import Blockchain.SHA
 import Blockchain.Stream.VMEvent
@@ -156,6 +158,8 @@ handleEvents peer = awaitForever $ \msg -> do
                       then yield $ GetBlockHeaders (BlockHash $ headerHash $ last headers) maxReturnedHeaders 0 Forward
                       else return ()
                  else yield $ GetBlockBodies $ map headerHash remainingHeaders
+
+   MsgEvt (Disconnect _) -> throwIO PeerDisconnected
 
    NewTX tx -> do
      let shouldSend =
