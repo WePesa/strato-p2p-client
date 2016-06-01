@@ -129,7 +129,10 @@ handleEvents = awaitForever $ \msg -> do
    MsgEvt (GetBlockBodies headers@(first:_)) -> do
           offsets <- lift $ getOffsetsForHashes [first]
           case offsets of
-            [] -> error $ "########### Warning: peer is asking for a block I don't have: " ++ format first
+            [] -> do
+              logInfoN $ T.pack $ "########### Warning: peer is asking for a block I don't have: " ++ format first     
+              yield $ BlockBodies []
+
             (o:_) -> do
               vmEvents <- liftIO $ fmap (fromMaybe (error "Internal error: an offset in SQL points to a value ouside of the block stream.")) $ fetchVMEventsIO $ fromIntegral o
               let blocks = [b | ChainBlock b <- vmEvents]
@@ -153,9 +156,9 @@ handleEvents = awaitForever $ \msg -> do
                       else return ()
                  else yield $ GetBlockBodies $ map headerHash remainingHeaders
 
-   NewTX tx -> do
-               when (not $ rawTransactionFromBlock tx) $ do
-                   yield $ Transactions [rawTX2TX tx]
+   NewTX _ -> return ()
+{-               when (not $ rawTransactionFromBlock tx) $ do
+                   yield $ Transactions [rawTX2TX tx] -}
    NewBL b d -> yield $ NewBlock b d
            
    event -> liftIO $ error $ "unrecognized event: " ++ show event
