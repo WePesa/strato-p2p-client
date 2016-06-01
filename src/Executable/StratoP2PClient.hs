@@ -1,4 +1,4 @@
-{-# LANGUAGE FlexibleContexts, ScopedTypeVariables #-}
+{-# LANGUAGE FlexibleContexts, ScopedTypeVariables, PatternGuards #-}
 
 module Executable.StratoP2PClient (
   stratoP2PClient
@@ -44,7 +44,6 @@ import Blockchain.DB.DetailsDB
 import Blockchain.DB.SQLDB
 --import Blockchain.DB.ModifyStateDB
 import Blockchain.Display
-import Blockchain.Error
 import Blockchain.EthConf hiding (genesisHash,port)
 import Blockchain.Event
 import Blockchain.EventException
