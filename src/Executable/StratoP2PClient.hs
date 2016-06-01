@@ -1,4 +1,4 @@
-{-# LANGUAGE FlexibleContexts, ScopedTypeVariables, PatternGuards #-}
+{-# LANGUAGE FlexibleContexts, ScopedTypeVariables, PatternGuards, OverloadedStrings #-}
 
 module Executable.StratoP2PClient (
   stratoP2PClient
@@ -20,8 +20,9 @@ import Data.Conduit
 import qualified Data.Conduit.Binary as CB
 import qualified Data.Conduit.List as CL
 import Data.Conduit.Network
-import qualified Data.Text as T
 import qualified Database.Persist.Postgresql as SQL
+import Data.Time.Clock.POSIX
+import qualified Data.Text as T
 import Network
 import qualified Network.Haskoin.Internals as H
 import System.Random
@@ -55,6 +56,7 @@ import Blockchain.PeerUrls
 import Blockchain.RawTXNotify
 --import Blockchain.SampleTransactions
 import Blockchain.PeerDB
+import Blockchain.SHA
 import Blockchain.TCPClientWithTimeout
 import Blockchain.Util
 
@@ -101,7 +103,7 @@ handleMsg myId peer = do
        }
    Just e -> throwIO $ EventBeforeHandshake e
    Nothing -> throwIO $ PeerDisconnected
-   
+
   statusResponse <- awaitMsg
 
   case statusResponse of
@@ -308,17 +310,17 @@ stratoP2PClient args = do
 
   let peers =
         if flags_sqlPeers
-        then map (\peer -> (peer, Just $ pPeerPubkey peer)) ipAddressesDB
+        then map (\peer -> (peer, pPeerPubkey peer)) ipAddressesDB
         else map (\peer -> (PPeer{
-                               pPeerPubkey=error "peer pubkey not set",
+                               pPeerPubkey=Nothing,
                                pPeerIp=T.pack $ fst peer,
                                pPeerPort=fromIntegral $ snd peer,
-                               pPeerNumSessions=error "numSessions unknown",
-                               pPeerLastMsg=error "last message unknown",
-                               pPeerLastMsgTime=error "last msg time unknown",
-                               pPeerLastTotalDifficulty=error "total difficulty unknown",
-                               pPeerLastBestBlockHash=error "last best block hash unknown",
-                               pPeerVersion=error "peer version unknown"
+                               pPeerNumSessions=0,
+                               pPeerLastMsg="",
+                               pPeerLastMsgTime=posixSecondsToUTCTime 0,
+                               pPeerLastTotalDifficulty=0,
+                               pPeerLastBestBlockHash=SHA 0,
+                               pPeerVersion=""
                                }, Nothing)) ipAddresses
 
 
