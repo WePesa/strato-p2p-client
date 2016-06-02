@@ -237,11 +237,11 @@ runPeer peer myPriv = do
   --cch <- mkCache 1024 "seed"
 
   runTCPClientWithConnectTimeout (clientSettings (pPeerPort peer) $ BC.pack $ T.unpack $ pPeerIp peer) 5 $ \server -> 
-      runResourceT $ ((do
+      runResourceT $ do
         pool <- runNoLoggingT $ SQL.createPostgresqlPool
                 connStr' 20
 
-        _ <- flip runStateT (Context pool [] []) $ ((do
+        _ <- flip runStateT (Context pool [] []) $ do
           (_, (outCxt, inCxt)) <- liftIO $ 
             appSource server $$+
             ethCryptConnect myPriv otherPubKey `fuseUpstream`
@@ -262,10 +262,10 @@ runPeer peer myPriv = do
             transPipe lift (tap (displayMessage True "")) =$=
             messagesToBytes =$=
             ethEncrypt outCxt $$
-            transPipe liftIO (appSink server)))
+            transPipe liftIO (appSink server)
 
 
-        return ()))
+        return ()
 
 getPubKeyRunPeer::(MonadIO m, MonadBaseControl IO m, MonadLogger m, MonadThrow m)=>
                   PPeer->m ()
