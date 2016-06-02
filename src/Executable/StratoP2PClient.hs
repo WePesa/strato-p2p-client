@@ -23,7 +23,6 @@ import Data.Conduit.Network
 import qualified Database.Persist.Postgresql as SQL
 import Data.Time.Clock.POSIX
 import qualified Data.Text as T
-import Network
 import qualified Network.Haskoin.Internals as H
 import System.Random
 
@@ -222,12 +221,12 @@ hPubKeyToPubKey pubKey = Point (fromIntegral x) (fromIntegral y)
 -}
   
 runPeer::(MonadIO m, MonadBaseControl IO m, MonadLogger m, MonadThrow m)=>
-         PPeer->PortNumber->Point->PrivateNumber->m ()
---runPeer::String->PortNumber->Point->PrivateNumber->LoggingT IO ()
-runPeer peer thePort otherPubKey myPriv = do
+         PPeer->PrivateNumber->m ()
+runPeer peer myPriv = do
+  let otherPubKey = fromMaybe (error "programmer error- runPeer was called without a pubkey") $ pPeerPubkey peer
   logInfoN $ T.pack $ C.blue "Welcome to strato-p2p-client"
   logInfoN $ T.pack $ C.blue "============================"
-  logInfoN $ T.pack $ C.green " * " ++ "Attempting to connect to " ++ C.yellow (T.unpack (pPeerIp peer) ++ ":" ++ show thePort)
+  logInfoN $ T.pack $ C.green " * " ++ "Attempting to connect to " ++ C.yellow (T.unpack (pPeerIp peer) ++ ":" ++ show (pPeerPort peer))
 
   let myPublic = calculatePublic theCurve myPriv
   logInfoN $ T.pack $ C.green " * " ++ "my pubkey is: " ++ C.yellow (take 30 (format $ pointToByteString myPublic) ++ "...")
@@ -237,7 +236,7 @@ runPeer peer thePort otherPubKey myPriv = do
 
   --cch <- mkCache 1024 "seed"
 
-  runTCPClientWithConnectTimeout (clientSettings (fromIntegral thePort) $ BC.pack $ T.unpack $ pPeerIp peer) 5 $ \server -> 
+  runTCPClientWithConnectTimeout (clientSettings (pPeerPort peer) $ BC.pack $ T.unpack $ pPeerIp peer) 5 $ \server -> 
       runResourceT $ ((do
         pool <- runNoLoggingT $ SQL.createPostgresqlPool
                 connStr' 20
@@ -269,28 +268,28 @@ runPeer peer thePort otherPubKey myPriv = do
         return ()))
 
 getPubKeyRunPeer::(MonadIO m, MonadBaseControl IO m, MonadLogger m, MonadThrow m)=>
-                  PPeer->Maybe Point->m ()
-getPubKeyRunPeer peer maybePubKey = do
+                  PPeer->m ()
+getPubKeyRunPeer peer = do
   entropyPool <- liftIO createEntropyPool
 
   let g = cprgCreate entropyPool :: SystemRNG
       (myPriv, _) = generatePrivate g $ getCurveByName SEC_p256k1
 
-  case maybePubKey of
+  case pPeerPubkey peer of
     Nothing -> do
       logInfoN $ T.pack $ "Attempting to connect to " ++ T.unpack (pPeerIp peer) ++ ":" ++ show (pPeerPort peer) ++ ", but I don't have the pubkey.  I will try to use a UDP ping to get the pubkey."
       eitherOtherPubKey <- liftIO $ getServerPubKey (fromMaybe (error "invalid private number in main") $ H.makePrvKey $ fromIntegral myPriv) (T.unpack $ pPeerIp peer) (fromIntegral $ pPeerPort peer)
       case eitherOtherPubKey of
             Right otherPubKey -> do
               logInfoN $ T.pack $ "#### Success, the pubkey has been obtained: " ++ (format $ pointToByteString otherPubKey)
-              runPeer peer (fromIntegral $ pPeerPort peer) otherPubKey myPriv
+              runPeer peer{pPeerPubkey=Just otherPubKey} myPriv
             Left e -> logInfoN $ T.pack $ "Error, couldn't get public key for peer: " ++ show e
-    Just otherPubKey -> runPeer peer (fromIntegral $ pPeerPort peer) otherPubKey myPriv
+    Just _ -> runPeer peer myPriv
                       
 
 runPeerInList::(MonadIO m, MonadBaseControl IO m, MonadLogger m, MonadThrow m)=>
                --[(String, PortNumber, Maybe Point)]->Maybe Int->m ()
-               [(PPeer ,Maybe Point)]->Maybe Int->m ()
+               [PPeer]->Maybe Int->m ()
 runPeerInList peers maybePeerNumber = do
   peerNumber <- case maybePeerNumber of
                   Just x -> return x
@@ -298,7 +297,7 @@ runPeerInList peers maybePeerNumber = do
 
   let thePeer = peers !! peerNumber
 
-  getPubKeyRunPeer (fst thePeer) (snd thePeer)
+  getPubKeyRunPeer thePeer
                
 stratoP2PClient::[String]->LoggingT IO ()    
 stratoP2PClient args = do
@@ -310,19 +309,19 @@ stratoP2PClient args = do
 
   let peers =
         if flags_sqlPeers
-        then map (\peer -> (peer, pPeerPubkey peer)) ipAddressesDB
-        else map (\peer -> (PPeer{
-                               pPeerPubkey=Nothing,
-                               pPeerIp=T.pack $ fst peer,
-                               pPeerPort=fromIntegral $ snd peer,
-                               pPeerNumSessions=0,
-                               pPeerLastMsg="",
-                               pPeerLastMsgTime=posixSecondsToUTCTime 0,
-                               pPeerLastTotalDifficulty=0,
-                               pPeerLastBestBlockHash=SHA 0,
-                               pPeerVersion=""
-                               }, Nothing)) ipAddresses
-
+        then ipAddressesDB
+        else map (\peer -> PPeer{
+                     pPeerPubkey=Nothing,
+                     pPeerIp=T.pack $ fst peer,
+                     pPeerPort=fromIntegral $ snd peer,
+                     pPeerNumSessions=0,
+                     pPeerLastMsg="",
+                     pPeerLastMsgTime=posixSecondsToUTCTime 0,
+                     pPeerLastTotalDifficulty=0,
+                     pPeerLastBestBlockHash=SHA 0,
+                     pPeerVersion=""
+                     }) ipAddresses
+  
 
   forever $ do
     result <- try $ runPeerInList peers maybePeerNumber
