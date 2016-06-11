@@ -245,7 +245,7 @@ wireMessage2Obj Hello { version = ver,
            rlpEncode $ toInteger p,
            rlpEncode nId
           ])
-wireMessage2Obj (Disconnect reason) = (0x0, RLPArray [rlpEncode $ terminationReasonToNumber reason])
+wireMessage2Obj (Disconnect reason) = (0x1, RLPArray [rlpEncode $ terminationReasonToNumber reason])
 wireMessage2Obj Ping = (0x2, RLPArray [])
 wireMessage2Obj Pong = (0x3, RLPArray [])
 wireMessage2Obj (Status ver nID d lh gh) =
