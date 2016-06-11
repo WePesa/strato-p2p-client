@@ -61,6 +61,7 @@ library
                  , postgresql-simple
                  , random
                  , resourcet
+                 , stm
                  , stm-conduit
                  , strato-conf
                  , text
@@ -75,6 +76,7 @@ library
                    Blockchain.Data.Wire
                    Blockchain.Display
                    Blockchain.Event
+                   Blockchain.EventException
                    Blockchain.ExtMergeSources
                    Blockchain.Options
                    Blockchain.PeerDB

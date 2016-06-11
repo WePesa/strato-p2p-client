@@ -12,6 +12,10 @@ import Control.Monad.IO.Class
 import Control.Monad.Trans.Control
 import Data.Conduit.Network
 
+data TCPClientWithTimeoutException = TimeoutException deriving (Show)
+
+instance Exception TCPClientWithTimeoutException
+
 threadDelaySeconds :: Double -> IO ()
 threadDelaySeconds secs =
   threadDelay (ceiling $ secs * 1e6)
@@ -45,5 +49,5 @@ runTCPClientWithConnectTimeout settings secs cont = do
        Left e -> throw (e::SomeException)
        Right x -> return x
     else do
-      _ <- error "runTCPClientWithConnectTimeout: could not connect in time"
+      _ <- throwIO $ TimeoutException
       liftIO $ killThread clientThreadID
