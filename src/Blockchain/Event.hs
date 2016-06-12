@@ -3,7 +3,8 @@
 module Blockchain.Event (
   Event(..),
   handleEvents,
-  maxReturnedHeaders
+  maxReturnedHeaders,
+  getBestKafkaBlockNumber
   ) where
 
 import Control.Exception.Lifted
@@ -161,11 +162,11 @@ handleEvents = awaitForever $ \msg -> do
    NewTX _ -> return ()
 
    MsgEvt (Disconnect _) -> throwIO PeerDisconnected
-
+{-
    NewTX tx -> do
                when (not $ rawTransactionFromBlock tx) $ do
                    yield $ Transactions [rawTX2TX tx]
-
+-}
    NewBL b d -> yield $ NewBlock b d
            
    event -> liftIO $ error $ "unrecognized event: " ++ show event

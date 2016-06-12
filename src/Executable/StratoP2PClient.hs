@@ -63,6 +63,8 @@ import Blockchain.Util
 import Data.Maybe
 
 
+mainFetchLimit :: Integer
+mainFetchLimit = 100
 
 awaitMsg::MonadIO m=>
           ConduitM Event Message m (Maybe Message)
@@ -108,8 +110,10 @@ handleMsg peerId' = do
    Just Status{latestHash=_, genesisHash=gh} -> do
      genesisBlockHash <- lift getGenesisBlockHash
      when (gh /= genesisBlockHash) $ throwIO WrongGenesisBlock
-     --lastBlockNumber <- liftIO $ fmap (maximum . map (blockDataNumber . blockBlockData)) $ fetchLastBlocks fetchLimit
-     let lastBlockNumber = 0
+--     lastBlockNumber <- liftIO $ fmap (maximum . map (blockDataNumber . blockBlockData)) $ fetchLastBlocks fetchLimit
+
+     lastBlockNumber <- liftIO $ getBestKafkaBlockNumber (fromIntegral mainFetchLimit)
+
      yield $ GetBlockHeaders (BlockNumber (max (lastBlockNumber - flags_syncBacktrackNumber) 0)) maxReturnedHeaders 0 Forward
    Just e -> throwIO $ EventBeforeHandshake e
    Nothing -> throwIO $ PeerDisconnected
