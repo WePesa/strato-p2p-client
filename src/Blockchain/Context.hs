@@ -18,7 +18,6 @@ import Control.Monad.Logger
 import Control.Monad.Trans.Resource
 import Control.Monad.State
 import Data.Time.Clock
-import Data.Time.Clock.POSIX
 
 import Blockchain.Data.BlockHeader
 import Blockchain.DB.SQLDB
