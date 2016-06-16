@@ -57,12 +57,12 @@ import Blockchain.RawTXNotify
 import Blockchain.PeerDB
 import Blockchain.SHA
 import Blockchain.TCPClientWithTimeout
+import Blockchain.TimerSource
 import Blockchain.Util
 
 --import Debug.Trace
 
 import Data.Maybe
-
 
 
 awaitMsg::MonadIO m=>
@@ -109,9 +109,12 @@ handleMsg myId peer = do
    Just Status{latestHash=_, genesisHash=gh} -> do
      genesisBlockHash <- lift getGenesisBlockHash
      when (gh /= genesisBlockHash) $ throwIO WrongGenesisBlock
-     --lastBlockNumber <- liftIO $ fmap (maximum . map (blockDataNumber . blockBlockData)) $ fetchLastBlocks fetchLimit
-     let lastBlockNumber = 0
+--     lastBlockNumber <- liftIO $ fmap (maximum . map (blockDataNumber . blockBlockData)) $ fetchLastBlocks fetchLimit
+
+     lastBlockNumber <- liftIO $ getBestKafkaBlockNumber
+
      yield $ GetBlockHeaders (BlockNumber (max (lastBlockNumber - flags_syncBacktrackNumber) 0)) maxReturnedHeaders 0 Forward
+     stampActionTimestamp
    Just e -> throwIO $ EventBeforeHandshake e
    Nothing -> throwIO $ PeerDisconnected
 
@@ -241,7 +244,7 @@ runPeer peer myPriv = do
         pool <- runNoLoggingT $ SQL.createPostgresqlPool
                 connStr' 20
 
-        _ <- flip runStateT (Context pool [] []) $ do
+        _ <- flip runStateT (Context pool [] [] Nothing) $ do
           (_, (outCxt, inCxt)) <- liftIO $ 
             appSource server $$+
             ethCryptConnect myPriv otherPubKey `fuseUpstream`
@@ -254,7 +257,8 @@ runPeer peer myPriv = do
             tap (displayMessage False "") =$=
             CL.map MsgEvt,
             txNotificationSource =$= CL.map NewTX,
-            blockNotificationSource =$= CL.map (flip NewBL 0)
+            blockNotificationSource =$= CL.map (flip NewBL 0),
+            timerSource
             ] 2
 
           eventSource =$=
