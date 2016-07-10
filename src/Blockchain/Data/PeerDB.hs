@@ -46,3 +46,12 @@ defaultPeer = PPeer{
   pPeerLastBestBlockHash=SHA 0,
   pPeerVersion=""
   }
+
+disablePeerForSeconds::PPeer->Int->IO ()
+disablePeerForSeconds peer seconds = do
+  currentTime <- getCurrentTime
+  sqldb <- runNoLoggingT $ SQL.createPostgresqlPool connStr' 20
+  flip SQL.runSqlPool sqldb $ 
+    SQL.updateWhere [PPeerIp SQL.==. pPeerIp peer, PPeerPort SQL.==. pPeerPort peer] [PPeerEnableTime SQL.=. fromIntegral seconds `addUTCTime` currentTime]
+  return ()
+  

@@ -301,6 +301,8 @@ runPeerInList peers maybePeerNumber = do
 
   let thePeer = peers !! peerNumber
 
+  liftIO $ disablePeerForSeconds thePeer 60 --don't connect to a peer more than once per minute, out of politeness
+  
   getPubKeyRunPeer thePeer
                
 stratoP2PClient::[String]->LoggingT IO ()    
