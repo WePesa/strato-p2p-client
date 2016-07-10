@@ -321,6 +321,7 @@ stratoP2PClient args = do
                      pPeerNumSessions=0,
                      pPeerLastMsg="",
                      pPeerLastMsgTime=posixSecondsToUTCTime 0,
+                     pPeerEnableTime=posixSecondsToUTCTime 0,
                      pPeerLastTotalDifficulty=0,
                      pPeerLastBestBlockHash=SHA 0,
                      pPeerVersion=""
