@@ -54,7 +54,7 @@ import Blockchain.Options
 import Blockchain.PeerUrls
 import Blockchain.RawTXNotify
 --import Blockchain.SampleTransactions
-import Blockchain.PeerDB
+import Blockchain.Data.PeerDB
 import Blockchain.SHA
 import Blockchain.TCPClientWithTimeout
 import Blockchain.TimerSource
@@ -311,24 +311,13 @@ stratoP2PClient args = do
           [x] -> return $ read x
           _ -> error "usage: ethereumH [servernum]"
 
-  let peers =
-        if flags_sqlPeers
-        then ipAddressesDB
-        else map (\peer -> PPeer{
-                     pPeerPubkey=Nothing,
-                     pPeerIp=T.pack $ fst peer,
-                     pPeerPort=fromIntegral $ snd peer,
-                     pPeerNumSessions=0,
-                     pPeerLastMsg="",
-                     pPeerLastMsgTime=posixSecondsToUTCTime 0,
-                     pPeerEnableTime=posixSecondsToUTCTime 0,
-                     pPeerLastTotalDifficulty=0,
-                     pPeerLastBestBlockHash=SHA 0,
-                     pPeerVersion=""
-                     }) ipAddresses
   
 
   forever $ do
+    peers <-
+      if flags_sqlPeers
+      then liftIO getAvailablePeers
+      else return $ map (\(ip, port) -> defaultPeer{pPeerIp=T.pack ip, pPeerPort=fromIntegral port}) ipAddresses
     result <- try $ runPeerInList peers maybePeerNumber
     case result of
      Left e | Just (ErrorCall x) <- fromException e -> error x

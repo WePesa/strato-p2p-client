@@ -45,6 +45,7 @@ library
                  , crypto-pubkey
                  , crypto-pubkey-types
                  , crypto-random
+                 , esqueleto
                  , ethereum-encryption
                  , ethereum-rlp
                  , haskoin
@@ -72,14 +73,13 @@ library
     exposed-modules: 
                    Blockchain.BlockNotify  
                    Blockchain.Context
-                   Blockchain.Data.Peer
                    Blockchain.Data.Wire
                    Blockchain.Display
                    Blockchain.Event
                    Blockchain.EventException
                    Blockchain.ExtMergeSources
                    Blockchain.Options
-                   Blockchain.PeerDB
+                   Blockchain.Data.PeerDB
                    Blockchain.RawTXNotify  
                    Blockchain.TCPClientWithTimeout
                    Executable.StratoP2PClient
