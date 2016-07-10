@@ -3,7 +3,8 @@
 --see http://stackoverflow.com/questions/35022378/how-do-i-change-runtcpclient-timeout-duration
 
 module Blockchain.TCPClientWithTimeout (
-  runTCPClientWithConnectTimeout
+  runTCPClientWithConnectTimeout,
+  TCPClientWithTimeoutException(..)
   ) where
 
 import Control.Concurrent.Lifted

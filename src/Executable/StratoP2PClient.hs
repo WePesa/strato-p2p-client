@@ -293,11 +293,8 @@ getPubKeyRunPeer peer = do
 
 runPeerInList::(MonadIO m, MonadBaseControl IO m, MonadLogger m, MonadThrow m)=>
                --[(String, PortNumber, Maybe Point)]->Maybe Int->m ()
-               [PPeer]->Maybe Int->m ()
-runPeerInList peers maybePeerNumber = do
-  peerNumber <- case maybePeerNumber of
-                  Just x -> return x
-                  Nothing -> liftIO $ randomRIO (0, length peers - 1)
+               [PPeer]->Int->m ()
+runPeerInList peers peerNumber = do
 
   let thePeer = peers !! peerNumber
 
@@ -320,10 +317,19 @@ stratoP2PClient args = do
       if flags_sqlPeers
       then liftIO getAvailablePeers
       else return $ map (\(ip, port) -> defaultPeer{pPeerIp=T.pack ip, pPeerPort=fromIntegral port}) ipAddresses
-    result <- try $ runPeerInList peers maybePeerNumber
+    peerNumber <-
+      case maybePeerNumber of
+       Just x -> return x
+       Nothing -> liftIO $ randomRIO (0, length peers - 1)
+    result <- try $ runPeerInList peers peerNumber
     case result of
      Left e | Just (ErrorCall x) <- fromException e -> error x
-     Left e -> logInfoN $ T.pack $ "Connection ended: " ++ show (e::SomeException)
+     Left e -> do
+       logInfoN $ T.pack $ "Connection ended: " ++ show (e::SomeException)
+       case e of
+        e' | Just TimeoutException <- fromException e' ->
+          liftIO $ disablePeerForSeconds (peers !! peerNumber) $ 60*60*4
+        _ -> return ()
      Right _ -> return ()
     when (isJust maybePeerNumber) $ liftIO $ threadDelay 1000000
 
