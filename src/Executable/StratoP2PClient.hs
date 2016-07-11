@@ -317,19 +317,25 @@ stratoP2PClient args = do
       if flags_sqlPeers
       then liftIO getAvailablePeers
       else return $ map (\(ip, port) -> defaultPeer{pPeerIp=T.pack ip, pPeerPort=fromIntegral port}) ipAddresses
-    peerNumber <-
-      case maybePeerNumber of
-       Just x -> return x
-       Nothing -> liftIO $ randomRIO (0, length peers - 1)
-    result <- try $ runPeerInList peers peerNumber
-    case result of
-     Left e | Just (ErrorCall x) <- fromException e -> error x
-     Left e -> do
-       logInfoN $ T.pack $ "Connection ended: " ++ show (e::SomeException)
-       case e of
-        e' | Just TimeoutException <- fromException e' ->
-          liftIO $ disablePeerForSeconds (peers !! peerNumber) $ 60*60*4
-        _ -> return ()
-     Right _ -> return ()
-    when (isJust maybePeerNumber) $ liftIO $ threadDelay 1000000
+
+    case peers of
+     [] -> do
+       logInfoN "No available peers, I will try to find available peers again in 10 seconds"
+       liftIO $ threadDelay 10000000
+     _ -> do
+       peerNumber <-
+         case maybePeerNumber of
+          Just x -> return x
+          Nothing -> liftIO $ randomRIO (0, length peers - 1)
+       result <- try $ runPeerInList peers peerNumber
+       case result of
+        Left e | Just (ErrorCall x) <- fromException e -> error x
+        Left e -> do
+          logInfoN $ T.pack $ "Connection ended: " ++ show (e::SomeException)
+          case e of
+           e' | Just TimeoutException <- fromException e' ->
+                  liftIO $ disablePeerForSeconds (peers !! peerNumber) $ 60*60*4
+           _ -> return ()
+        Right _ -> return ()
+       when (isJust maybePeerNumber) $ liftIO $ threadDelay 1000000
 
