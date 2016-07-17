@@ -45,6 +45,7 @@ import Blockchain.DB.SQLDB
 --import Blockchain.DB.ModifyStateDB
 import Blockchain.Display
 import Blockchain.EthConf hiding (genesisHash,port)
+import Blockchain.EthEncryptionException
 import Blockchain.Event
 import Blockchain.EventException
 import Blockchain.ExtMergeSources
@@ -335,6 +336,8 @@ stratoP2PClient args = do
           case e of
            e' | Just TimeoutException <- fromException e' ->
                   liftIO $ disablePeerForSeconds (peers !! peerNumber) $ 60*60*4
+           e' | Just HeadMacIncorrect <- fromException e' ->
+                  liftIO $ disablePeerForSeconds (peers !! peerNumber) $ 60*60*24
            _ -> return ()
         Right _ -> return ()
        when (isJust maybePeerNumber) $ liftIO $ threadDelay 1000000
