@@ -20,6 +20,7 @@ import qualified Data.Text as T
 import Data.Time.Clock
 import Network.Kafka.Protocol (Offset)
 
+import Blockchain.Colors
 import Blockchain.Context
 import Blockchain.Data.DataDefs
 import Blockchain.Data.Wire
@@ -44,8 +45,7 @@ setTitleAndProduceBlocks blocks = do
   let lastBlockHashes = [blockHash b | ChainBlock b <- lastVMEvents]
   let newBlocks = filter (not . (`elem` lastBlockHashes) . blockHash) blocks
   when (not $ null newBlocks) $ do
-    logInfoN $ T.pack $ "Block #" ++ show (maximum $ map (blockDataNumber . blockBlockData) newBlocks)
-    logInfoN $ T.pack $ "Block #" ++ show (maximum $ map (blockDataNumber . blockBlockData) newBlocks)
+    liftIO $ setTitle $ "Block #" ++ show (maximum $ map (blockDataNumber . blockBlockData) newBlocks)
     _ <- produceVMEvents $ map ChainBlock newBlocks
     return ()
 
@@ -190,10 +190,12 @@ handleEvents peer = awaitForever $ \msg -> do
      maybeOldTS <- getActionTimestamp
      case maybeOldTS of
       Just oldTS -> do
-        logInfoN "timer set, checking time"
         ts <- liftIO getCurrentTime
+        --logInfoN $ T.pack $ "timer set, checking time: " ++ show (60 - ts `diffUTCTime` oldTS)
+        liftIO $ setTitle $ "timer: " ++ show (60 - ts `diffUTCTime` oldTS)
         when (ts `diffUTCTime` oldTS > 60) $ do
           yield $ Disconnect UselessPeer
+          liftIO $ setTitle $ "timer timed out!"
           error "Peer did not respond"
       Nothing -> return ()
                  
