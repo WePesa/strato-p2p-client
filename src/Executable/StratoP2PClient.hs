@@ -37,6 +37,7 @@ import Blockchain.Constants
 import Blockchain.Context
 import Blockchain.Data.BlockDB
 import Blockchain.Data.DataDefs
+import Blockchain.Data.Extra
 import Blockchain.Data.RLP
 --import Blockchain.Data.SignedTransaction
 import Blockchain.Data.Wire
@@ -57,6 +58,7 @@ import Blockchain.RawTXNotify
 --import Blockchain.SampleTransactions
 import Blockchain.Data.PeerDB
 import Blockchain.SHA
+import Blockchain.Stream.VMEvent
 import Blockchain.TCPClientWithTimeout
 import Blockchain.TimerSource
 import Blockchain.Util
@@ -91,7 +93,7 @@ handleMsg myId peer = do
   case helloResponse of
    Just Hello{} -> do
      bestBlock <- lift getBestBlock
-     genesisBlockHash <- lift getGenesisBlockHash
+     genesisBlockHash <- lift getGenesisHash
      yield Status{
        protocolVersion=fromIntegral ethVersion,
        networkID=if flags_cNetworkID == -1
@@ -108,13 +110,15 @@ handleMsg myId peer = do
 
   case statusResponse of
    Just Status{latestHash=_, genesisHash=gh} -> do
-     genesisBlockHash <- lift getGenesisBlockHash
+     genesisBlockHash <- lift getGenesisHash
      when (gh /= genesisBlockHash) $ throwIO WrongGenesisBlock
 --     lastBlockNumber <- liftIO $ fmap (maximum . map (blockDataNumber . blockBlockData)) $ fetchLastBlocks fetchLimit
 
      lastBlockNumber <- liftIO $ getBestKafkaBlockNumber
 
-     yield $ GetBlockHeaders (BlockNumber (max (lastBlockNumber - flags_syncBacktrackNumber) 0)) maxReturnedHeaders 0 Forward
+     Just (ChainBlock firstBlock:_) <- liftIO $ fetchVMEventsIO 0
+
+     yield $ GetBlockHeaders (BlockNumber (max (lastBlockNumber - flags_syncBacktrackNumber) (blockDataNumber $ blockBlockData firstBlock))) maxReturnedHeaders 0 Forward
      stampActionTimestamp
    Just e -> throwIO $ EventBeforeHandshake e
    Nothing -> throwIO $ PeerDisconnected

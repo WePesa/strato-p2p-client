@@ -118,19 +118,22 @@ handleEvents peer = awaitForever $ \msg -> do
                alreadyRequestedHeaders <- lift getBlockHeaders
                when (null alreadyRequestedHeaders) $ do
                  let headerHashes = S.fromList $ map headerHash headers
-                     neededParentHashes = S.fromList $ map parentHash $ filter ((/= 0) . number) headers
-                     allNeeded = headerHashes `S.union` neededParentHashes
-                 found <- lift $ fmap (S.fromList . map blockOffsetHash) $ getBlockOffsetsForHashes $ S.toList allNeeded
-                 let unfoundParents = S.toList $ neededParentHashes S.\\ headerHashes S.\\found
+                     parentHashes = S.fromList $ map parentHash headers
+                     allNeeded = headerHashes `S.union` parentHashes
+
+                 blockOffsets <- lift $ fmap (map blockOffsetHash) $ getBlockOffsetsForHashes $ S.toList allNeeded
+
+
+                 let neededHeaders = filter (not . (`elem` blockOffsets) . headerHash) headers 
+                     neededHashes = map headerHash neededHeaders
+                     neededParents = filter (not . (`elem` blockOffsets)) $ map parentHash neededHeaders
+                     unfoundParents = S.toList $ S.fromList neededParents S.\\ S.fromList neededHashes
 
                  when (not $ null unfoundParents) $ do
                       error $ "incoming blocks don't seem to have existing parents: " ++ unlines (map format $ unfoundParents)
 
-                 let neededHeaders = filter (not . (`elem` found) . headerHash) headers
-
                  lift $ putBlockHeaders neededHeaders
                  logInfoN $ T.pack $ "putBlockHeaders called with length " ++ show (length neededHeaders)
-                 let neededHashes = map headerHash neededHeaders
                  --when (length neededHeaders /= length (S.toList $ S.fromList neededHashes)) $ error "duplicates in neededHeaders"
                  yield $ GetBlockBodies neededHashes
                  stampActionTimestamp
