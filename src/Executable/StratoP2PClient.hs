@@ -340,6 +340,8 @@ stratoP2PClient args = do
           case e of
            e' | Just TimeoutException <- fromException e' ->
                   liftIO $ disablePeerForSeconds (peers !! peerNumber) $ 60*60*4
+           e' | Just WrongGenesisBlock <- fromException e' ->
+                  liftIO $ disablePeerForSeconds (peers !! peerNumber) $ 60*60*24*7
            e' | Just HeadMacIncorrect <- fromException e' ->
                   liftIO $ disablePeerForSeconds (peers !! peerNumber) $ 60*60*24
            _ -> return ()
