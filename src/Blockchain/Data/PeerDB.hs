@@ -9,7 +9,6 @@ import Data.Time.Clock.POSIX
 import Blockchain.Data.DataDefs
     
 import           Control.Monad.Logger    (runNoLoggingT)
-import qualified Database.Esqueleto as E
 import qualified Database.Persist.Postgresql as SQL
 import Blockchain.EthConf
 import Blockchain.SHA

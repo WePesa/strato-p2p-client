@@ -21,7 +21,6 @@ import qualified Data.Conduit.Binary as CB
 import qualified Data.Conduit.List as CL
 import Data.Conduit.Network
 import qualified Database.Persist.Postgresql as SQL
-import Data.Time.Clock.POSIX
 import qualified Data.Text as T
 import qualified Network.Haskoin.Internals as H
 import System.Random
@@ -57,7 +56,6 @@ import Blockchain.PeerUrls
 import Blockchain.RawTXNotify
 --import Blockchain.SampleTransactions
 import Blockchain.Data.PeerDB
-import Blockchain.SHA
 import Blockchain.Stream.VMEvent
 import Blockchain.TCPClientWithTimeout
 import Blockchain.TimerSource
@@ -321,7 +319,7 @@ stratoP2PClient args = do
     peers <-
       if flags_sqlPeers
       then liftIO getAvailablePeers
-      else return $ map (\(ip, port) -> defaultPeer{pPeerIp=T.pack ip, pPeerPort=fromIntegral port}) ipAddresses
+      else return $ map (\(ip, port') -> defaultPeer{pPeerIp=T.pack ip, pPeerPort=fromIntegral port'}) ipAddresses
 
     case peers of
      [] -> do
