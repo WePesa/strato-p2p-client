@@ -259,8 +259,8 @@ runPeer peer myPriv = do
             bytesToMessages =$=
             tap (displayMessage False "") =$=
             CL.map MsgEvt,
-            txNotificationSource "client_tx_notify" =$= CL.map NewTX,
-            blockNotificationSource =$= CL.map (flip NewBL 0),
+            txNotificationSource "client_tx" =$= CL.map NewTX,
+            blockNotificationSource "client_block" =$= CL.map (flip NewBL 0 . fst),
             timerSource
             ] 2
 

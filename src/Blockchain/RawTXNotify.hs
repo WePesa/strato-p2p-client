@@ -14,7 +14,6 @@ import Data.String
 import qualified Data.Text as T
 import qualified Database.Persist as SQL
 import qualified Database.Persist.Postgresql as SQL
---import qualified Database.Persist.Sql as SQL
 import qualified Database.PostgreSQL.Simple as PS
 import Database.PostgreSQL.Simple.Notification
 
@@ -26,14 +25,14 @@ createTXTrigger::(MonadIO m, MonadLogger m)=>
                  String->m ()
 createTXTrigger name = do
   conn <- liftIO $ PS.connectPostgreSQL connStr
-  res2 <- liftIO $ PS.execute_ conn $ fromString $ "DROP TRIGGER IF EXISTS " ++ name ++ " ON raw_transaction;\n\
-\CREATE OR REPLACE FUNCTION " ++ name ++ "() RETURNS TRIGGER AS $" ++ name ++ "$ \n\ 
+  res2 <- liftIO $ PS.execute_ conn $ fromString $ "DROP TRIGGER IF EXISTS " ++ name ++ "_notify ON raw_transaction;\n\
+\CREATE OR REPLACE FUNCTION " ++ name ++ "_notify() RETURNS TRIGGER AS $" ++ name ++ "_notify$ \n\ 
     \ BEGIN \n\
-    \     PERFORM pg_notify('new_transaction', NEW.id::text ); \n\
+    \     PERFORM pg_notify('new_" ++ name ++ "', NEW.id::text ); \n\
     \     RETURN NULL; \n\
     \ END; \n\
-\ $" ++ name ++ "$ LANGUAGE plpgsql; \n\
-\ CREATE TRIGGER " ++ name ++ " AFTER INSERT OR DELETE ON raw_transaction FOR EACH ROW EXECUTE PROCEDURE " ++ name ++ "();"
+\ $" ++ name ++ "_notify$ LANGUAGE plpgsql; \n\
+\ CREATE TRIGGER " ++ name ++ "_notify AFTER INSERT OR DELETE OR UPDATE ON raw_transaction FOR EACH ROW EXECUTE PROCEDURE " ++ name ++ "_notify();"
 
   liftIO $ PS.close conn
 
@@ -49,7 +48,7 @@ txNotificationSource name = do
   lift $ createTXTrigger name
 
   forever $ do
-    _ <- liftIO $ PS.execute_ conn "LISTEN new_transaction;"
+    _ <- liftIO $ PS.execute_ conn $ fromString $ "LISTEN new_" ++ name ++ ";"
     logInfoN "about to listen for raw transaction notifications"
     rowId <- liftIO $ fmap (SQL.toSqlKey . read . BC.unpack . notificationData) $ getNotification conn
     logInfoN $ T.pack $ "########### raw transaction has been added: rowId=" ++ show rowId
