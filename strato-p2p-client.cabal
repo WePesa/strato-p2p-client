@@ -46,6 +46,7 @@ library
                  , crypto-pubkey-types
                  , crypto-random
                  , esqueleto
+                 , ethereum-discovery
                  , ethereum-encryption
                  , ethereum-rlp
                  , haskoin

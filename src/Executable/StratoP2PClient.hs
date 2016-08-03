@@ -26,7 +26,7 @@ import qualified Network.Haskoin.Internals as H
 import System.Random
 
 import Blockchain.Frame
-import Blockchain.UDP hiding (Ping,Pong)
+import Blockchain.UDP
 import Blockchain.RLPx
 
 import Blockchain.BlockNotify
