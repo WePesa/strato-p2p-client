@@ -1,6 +1,4 @@
 {-# LANGUAGE OverloadedStrings #-}
---TODO : Take this next line out
-{-# OPTIONS_GHC -fno-warn-orphans #-}
 
 module Blockchain.Data.Wire (
   Message(..),
@@ -16,18 +14,18 @@ import Crypto.Types.PubKey.ECC
 import qualified Data.ByteString as B
 import Data.List
 import Data.Word
-import Numeric
 import Text.PrettyPrint.ANSI.Leijen hiding ((<$>))
 
 import qualified Blockchain.Colors as CL
 import Blockchain.Data.BlockDB
 import Blockchain.Data.BlockHeader
+import Blockchain.Data.PubKey ()
 import Blockchain.Data.RLP
 import Blockchain.Data.Transaction
-import Blockchain.ExtWord
 import Blockchain.Format
 import Blockchain.SHA
 import Blockchain.Util
+
 
 --import Debug.Trace
 
@@ -131,10 +129,6 @@ data Message =
 
   WhisperProtocolVersion Int deriving (Show)
 
-instance Format Point where
-  format (Point x y) = padZeros 64 (showHex x "") ++ padZeros 64 (showHex y "")
-  format PointO = "PointO"
-
 instance Format Message where
   format Hello{version=ver, clientId=c, capability=cap, port=p, nodeId=n} =
     CL.blue "Hello" ++
@@ -180,16 +174,6 @@ instance Format Message where
       
   format (WhisperProtocolVersion ver) = CL.blue "WhisperProtocolVersion " ++ show ver
   --format x = error $ "missing value in format for Wire Message: " ++ show x
-
-
-instance RLPSerializable Point where
-  rlpEncode (Point x y) =
-    rlpEncode $ B.pack $ (word256ToBytes $ fromInteger x) ++ (word256ToBytes $ fromInteger y)
-  rlpEncode PointO = error "rlpEncode for Point called for PointO"
-  rlpDecode o =
-    Point (toInteger $ bytesToWord256 $ B.unpack x) (toInteger $ bytesToWord256 $ B.unpack y)
-    where
-      (x, y) = B.splitAt 32 $ rlpDecode o
 
 obj2WireMessage::Word8->RLPObject->Message
 obj2WireMessage 0x0 (RLPArray [ver, cId, RLPArray cap, p, nId]) =

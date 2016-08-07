@@ -37,7 +37,6 @@ import Blockchain.Context
 import Blockchain.Data.BlockDB
 import Blockchain.Data.Extra
 import Blockchain.Data.Peer
-import Blockchain.Data.PubKey
 import Blockchain.Data.RLP
 --import Blockchain.Data.SignedTransaction
 import Blockchain.Data.Wire
@@ -229,10 +228,10 @@ runPeer peer myPriv = do
   logInfoN $ T.pack $ C.green " * " ++ "Attempting to connect to " ++ C.yellow (T.unpack (pPeerIp peer) ++ ":" ++ show (pPeerPort peer))
 
   let myPublic = calculatePublic theCurve myPriv
-  logInfoN $ T.pack $ C.green " * " ++ "my pubkey is: " ++ C.yellow (take 30 (format $ B.pack $ pointToBytes myPublic) ++ "...")
+  logInfoN $ T.pack $ C.green " * " ++ "my pubkey is: " ++ format myPublic
   --logInfoN $ T.pack $ "my NodeID is: " ++ (format $ pointToByteString $ hPubKeyToPubKey $ H.derivePubKey $ fromMaybe (error "invalid private number in main") $ H.makePrvKey $ fromIntegral myPriv)
 
-  logInfoN $ T.pack $ C.green " * " ++ "server pubkey is : " ++ C.yellow (take 30 (format $ B.pack $ pointToBytes otherPubKey) ++ "...")
+  logInfoN $ T.pack $ C.green " * " ++ "server pubkey is : " ++ format otherPubKey
 
   --cch <- mkCache 1024 "seed"
 
@@ -282,7 +281,7 @@ getPubKeyRunPeer peer = do
       eitherOtherPubKey <- liftIO $ getServerPubKey (fromMaybe (error "invalid private number in main") $ H.makePrvKey $ fromIntegral myPriv) (T.unpack $ pPeerIp peer) (fromIntegral $ pPeerPort peer)
       case eitherOtherPubKey of
             Right otherPubKey -> do
-              logInfoN $ T.pack $ "#### Success, the pubkey has been obtained: " ++ (format $ B.pack $ pointToBytes otherPubKey)
+              logInfoN $ T.pack $ "#### Success, the pubkey has been obtained: " ++ format otherPubKey
               runPeer peer{pPeerPubkey=Just otherPubKey} myPriv
             Left e -> logInfoN $ T.pack $ "Error, couldn't get public key for peer: " ++ show e
     Just _ -> runPeer peer myPriv
