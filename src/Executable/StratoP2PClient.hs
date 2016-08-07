@@ -224,7 +224,7 @@ runPeer peer myPriv = do
   let otherPubKey = fromMaybe (error "programmer error- runPeer was called without a pubkey") $ pPeerPubkey peer
   logInfoN $ T.pack $ C.blue "Welcome to strato-p2p-client"
   logInfoN $ T.pack $ C.blue "============================"
-  logInfoN $ T.pack $ C.green " * " ++ "Attempting to connect to " ++ C.yellow (T.unpack (pPeerIp peer) ++ ":" ++ show (pPeerPort peer))
+  logInfoN $ T.pack $ C.green " * " ++ "Attempting to connect to " ++ C.yellow (T.unpack (pPeerIp peer) ++ ":" ++ show (pPeerTcpPort peer))
 
   let myPublic = calculatePublic theCurve myPriv
   logInfoN $ T.pack $ C.green " * " ++ "my pubkey is: " ++ format myPublic
@@ -234,7 +234,7 @@ runPeer peer myPriv = do
 
   --cch <- mkCache 1024 "seed"
 
-  runTCPClientWithConnectTimeout (clientSettings (pPeerPort peer) $ BC.pack $ T.unpack $ pPeerIp peer) 5 $ \server -> 
+  runTCPClientWithConnectTimeout (clientSettings (pPeerTcpPort peer) $ BC.pack $ T.unpack $ pPeerIp peer) 5 $ \server -> 
       runResourceT $ do
         pool <- runNoLoggingT $ SQL.createPostgresqlPool
                 connStr' 20
@@ -276,8 +276,8 @@ getPubKeyRunPeer peer = do
 
   case pPeerPubkey peer of
     Nothing -> do
-      logInfoN $ T.pack $ "Attempting to connect to " ++ T.unpack (pPeerIp peer) ++ ":" ++ show (pPeerPort peer) ++ ", but I don't have the pubkey.  I will try to use a UDP ping to get the pubkey."
-      eitherOtherPubKey <- liftIO $ getServerPubKey (fromMaybe (error "invalid private number in main") $ H.makePrvKey $ fromIntegral myPriv) (T.unpack $ pPeerIp peer) (fromIntegral $ pPeerPort peer)
+      logInfoN $ T.pack $ "Attempting to connect to " ++ T.unpack (pPeerIp peer) ++ ":" ++ show (pPeerTcpPort peer) ++ ", but I don't have the pubkey.  I will try to use a UDP ping to get the pubkey."
+      eitherOtherPubKey <- liftIO $ getServerPubKey (fromMaybe (error "invalid private number in main") $ H.makePrvKey $ fromIntegral myPriv) (T.unpack $ pPeerIp peer) (fromIntegral $ pPeerTcpPort peer)
       case eitherOtherPubKey of
             Right otherPubKey -> do
               logInfoN $ T.pack $ "#### Success, the pubkey has been obtained: " ++ format otherPubKey
@@ -311,7 +311,7 @@ stratoP2PClient args = do
     peers <-
       if flags_sqlPeers
       then liftIO getAvailablePeers
-      else return $ map (\(ip, port') -> defaultPeer{pPeerIp=T.pack ip, pPeerPort=fromIntegral port'}) ipAddresses
+      else return $ map (\(ip, port') -> defaultPeer{pPeerIp=T.pack ip, pPeerTcpPort=fromIntegral port'}) ipAddresses
 
     case peers of
      [] -> do

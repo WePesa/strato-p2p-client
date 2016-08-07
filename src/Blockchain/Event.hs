@@ -66,7 +66,7 @@ maxReturnedHeaders::Int
 maxReturnedHeaders=1000
 
 peerString::PPeer->String
-peerString peer = show (pPeerPubkey peer) ++ "@" ++ T.unpack (pPeerIp peer) ++ ":" ++ show (pPeerPort peer)
+peerString peer = show (pPeerPubkey peer) ++ "@" ++ T.unpack (pPeerIp peer) ++ ":" ++ show (pPeerTcpPort peer)
 
 handleEvents::(MonadIO m, HasSQLDB m, MonadState Context m, MonadLogger m)=>
               PPeer->Conduit Event m Message
