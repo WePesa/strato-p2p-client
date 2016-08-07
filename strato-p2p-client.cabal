@@ -80,7 +80,6 @@ library
                    Blockchain.EventException
                    Blockchain.ExtMergeSources
                    Blockchain.Options
-                   Blockchain.Data.PeerDB
                    Blockchain.RawTXNotify  
                    Blockchain.TCPClientWithTimeout
                    Executable.StratoP2PClient

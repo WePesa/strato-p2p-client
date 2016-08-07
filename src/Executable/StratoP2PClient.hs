@@ -54,7 +54,6 @@ import Blockchain.Options
 import Blockchain.PeerUrls
 import Blockchain.RawTXNotify
 --import Blockchain.SampleTransactions
-import Blockchain.Data.PeerDB
 import Blockchain.Stream.VMEvent
 import Blockchain.TCPClientWithTimeout
 import Blockchain.TimerSource
