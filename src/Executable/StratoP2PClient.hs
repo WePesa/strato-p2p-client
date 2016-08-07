@@ -35,8 +35,8 @@ import qualified Blockchain.Colors as C
 import Blockchain.Constants
 import Blockchain.Context
 import Blockchain.Data.BlockDB
-import Blockchain.Data.DataDefs
 import Blockchain.Data.Extra
+import Blockchain.Data.Peer
 import Blockchain.Data.RLP
 --import Blockchain.Data.SignedTransaction
 import Blockchain.Data.Wire

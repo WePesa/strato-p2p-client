@@ -6,7 +6,7 @@ module Blockchain.Data.PeerDB where
 import Data.Time.Clock
 import Data.Time.Clock.POSIX
 
-import Blockchain.Data.DataDefs
+import Blockchain.Data.Peer
     
 import           Control.Monad.Logger    (runNoLoggingT)
 import qualified Database.Persist.Postgresql as SQL
