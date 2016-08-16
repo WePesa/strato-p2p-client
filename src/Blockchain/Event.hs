@@ -183,6 +183,7 @@ handleEvents peer = awaitForever $ \msg -> do
             Origin.PeerString ps -> ps /= peerString peer
             Origin.API -> True
             Origin.BlockHash _ -> False
+            Origin.Direct -> True
 
             
      when shouldSend $
