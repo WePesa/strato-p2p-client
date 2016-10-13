@@ -12,7 +12,6 @@ import Control.Monad.State
 import Control.Monad.Trans.Resource
 import Crypto.PubKey.ECC.DH
 import Crypto.Types.PubKey.ECC
-import Crypto.Random
 import qualified Data.ByteString as B
 import qualified Data.ByteString.Char8 as BC
 import qualified Data.ByteString.Lazy as BL
@@ -269,10 +268,7 @@ runPeer peer myPriv = do
 getPubKeyRunPeer::(MonadIO m, MonadBaseControl IO m, MonadLogger m, MonadThrow m)=>
                   PPeer->m ()
 getPubKeyRunPeer peer = do
-  entropyPool <- liftIO createEntropyPool
-
-  let g = cprgCreate entropyPool :: SystemRNG
-      (myPriv, _) = generatePrivate g $ getCurveByName SEC_p256k1
+  let PrivKey myPriv = privKey ethConf
 
   case pPeerPubkey peer of
     Nothing -> do
