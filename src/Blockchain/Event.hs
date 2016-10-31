@@ -76,7 +76,7 @@ handleEvents peer = awaitForever $ \msg -> do
    MsgEvt Status{} -> error "A status message appeared after the handshake"
    MsgEvt Ping -> yield Pong
 
-   MsgEvt (Transactions txs) -> lift $ insertTXIfNew (Origin.PeerString $  peerString peer) Nothing txs
+   MsgEvt (Transactions txs) -> (lift $ insertTXIfNew (Origin.PeerString $  peerString peer) Nothing txs) >> return ()
 
    MsgEvt (NewBlock block' _) -> do
               lift $ putNewBlk $ blockToNewBlk block'
