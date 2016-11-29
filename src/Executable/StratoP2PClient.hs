@@ -4,7 +4,8 @@ module Executable.StratoP2PClient (
   stratoP2PClient
   ) where
 
-import Control.Concurrent (threadDelay)
+import Control.Concurrent hiding (yield)
+import Control.Concurrent.STM.MonadIO
 import Control.Exception.Lifted
 import Control.Monad.IO.Class
 import Control.Monad.Logger
@@ -20,6 +21,7 @@ import qualified Data.Conduit.Binary as CB
 import qualified Data.Conduit.List as CL
 import Data.Conduit.Network
 import qualified Database.Persist.Postgresql as SQL
+import qualified Data.Set as S
 import qualified Data.Text as T
 import qualified Network.Haskoin.Internals as H
 import System.Random
@@ -57,6 +59,7 @@ import Blockchain.Stream.VMEvent
 import Blockchain.TCPClientWithTimeout
 import Blockchain.TimerSource
 import Blockchain.Util
+import Executable.StratoP2PClientComm
 
 --import Debug.Trace
 
@@ -301,7 +304,10 @@ stratoP2PClient args = do
           [x] -> return $ read x
           _ -> error "usage: ethereumH [servernum]"
 
+
+  connectedPeers <- newTVar S.empty
   
+  _ <- liftIO $ forkIO $ runStratoP2PClientComm connectedPeers
 
   forever $ do
     peers <-

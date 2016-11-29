@@ -51,10 +51,12 @@ library
                  , ethereum-rlp
                  , haskoin
                  , hflags
+                 , json-rpc-server
                  , lifted-base
                  , merkle-patricia-db
                  , monad-control
                  , monad-logger
+                 , monadIO
                  , milena
                  , mtl
                  , network
@@ -85,6 +87,7 @@ library
                    Executable.StratoP2PClient
     other-modules:
                    Blockchain.TimerSource
+                   Executable.StratoP2PClientComm
     ghc-options: -Wall -O2
     buildable: True
     hs-source-dirs: src
