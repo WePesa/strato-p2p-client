@@ -77,9 +77,13 @@ handleEvents peer = awaitForever $ \msg -> do
    MsgEvt Ping -> yield Pong
 
    MsgEvt (Transactions txs) -> (lift $ insertTXIfNew (Origin.PeerString $  peerString peer) Nothing txs) >> return ()
+--                                 do
+--     lift $ insertTXIfNew (Origin.PeerString $  peerString peer) Nothing txs
+--     -- <- todo push to unseqEvents
+--     return ()
 
    MsgEvt (NewBlock block' _) -> do
-              lift $ putNewBlk $ blockToNewBlk block'
+              lift $ putNewBlk $ blockToNewBlk block' -- todo delete this?
               let parentHash' = blockDataParentHash $ blockBlockData block'
               blockOffsets <- lift $ getBlockOffsetsForHashes [parentHash']
               case blockOffsets of
@@ -184,6 +188,7 @@ handleEvents peer = awaitForever $ \msg -> do
             Origin.API -> True
             Origin.BlockHash _ -> False
             Origin.Direct -> True
+            Origin.Quarry -> False -- this should never reach this far anyway
 
             
      when shouldSend $
