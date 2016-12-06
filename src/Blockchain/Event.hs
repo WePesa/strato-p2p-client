@@ -38,6 +38,10 @@ import Blockchain.SHA
 import Blockchain.Stream.VMEvent
 import Blockchain.Verification
 
+import Blockchain.Sequencer.Event (IngestTx(..), IngestEvent(..), blockToIngestBlock)
+import Blockchain.Sequencer.Kafka (writeUnseqEvents)
+import Blockchain.EthConf (runKafkaConfigured)
+
 data Event = MsgEvt Message | NewTX RawTransaction | NewBL Block Integer | TimerEvt deriving (Show)
 
 setTitleAndProduceBlocks::(MonadLogger m, HasSQLDB m)=>[Block]->m Int
@@ -68,6 +72,24 @@ maxReturnedHeaders=1000
 peerString::PPeer->String
 peerString peer = show (pPeerPubkey peer) ++ "@" ++ T.unpack (pPeerIp peer) ++ ":" ++ show (pPeerTcpPort peer)
 
+emitKafkaTransactions :: (MonadIO m, MonadLogger m) => Origin.TXOrigin -> [Transaction] -> m ()
+emitKafkaTransactions origin txs = do
+    let ingestTxs = (IETx . (IngestTx origin)) <$> txs
+    rets <- liftIO $ runKafkaConfigured "strato-p2p-client" $ writeUnseqEvents ingestTxs
+    case rets of
+        Left e      -> logErrorN . T.pack $ "Could not write txs to Kafka: " ++ (show e)
+        Right resps -> logDebugN . T.pack $ "Kafka commit: " ++ (show resps)
+    return ()
+
+emitKafkaBlock :: (MonadIO m, MonadLogger m) => Origin.TXOrigin -> Block -> m ()
+emitKafkaBlock origin baseBlock = do
+    let ingestBlock = IEBlock $ blockToIngestBlock origin baseBlock
+    rets <- liftIO $ runKafkaConfigured "strato-p2p-client" $ writeUnseqEvents [ingestBlock]
+    case rets of
+        Left e      -> logErrorN . T.pack $ "Could not write block to Kafka: " ++ (show e)
+        Right resps -> logDebugN . T.pack $ "Kafka commit: " ++ (show resps)
+    return ()
+
 handleEvents::(MonadIO m, HasSQLDB m, MonadState Context m, MonadLogger m)=>
               PPeer->Conduit Event m Message
 handleEvents peer = awaitForever $ \msg -> do
@@ -76,11 +98,11 @@ handleEvents peer = awaitForever $ \msg -> do
    MsgEvt Status{} -> error "A status message appeared after the handshake"
    MsgEvt Ping -> yield Pong
 
-   MsgEvt (Transactions txs) -> (lift $ insertTXIfNew (Origin.PeerString $  peerString peer) Nothing txs) >> return ()
---                                 do
---     lift $ insertTXIfNew (Origin.PeerString $  peerString peer) Nothing txs
---     -- <- todo push to unseqEvents
---     return ()
+   MsgEvt (Transactions txs) -> do
+        let txo = (Origin.PeerString $ peerString peer)
+        _ <- lift $ insertTXIfNew txo Nothing txs
+        emitKafkaTransactions txo txs
+        return ()
 
    MsgEvt (NewBlock block' _) -> do
               lift $ putNewBlk $ blockToNewBlk block' -- todo delete this?
@@ -89,6 +111,7 @@ handleEvents peer = awaitForever $ \msg -> do
               case blockOffsets of
                [x] | blockOffsetHash x == parentHash' -> do
                        _ <- lift $ setTitleAndProduceBlocks [block']
+                       emitKafkaBlock (Origin.PeerString $ peerString peer) block'
                        return ()
                _ -> do
                  logInfoN "#### New block is missing its parent, I am resyncing"
