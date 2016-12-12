@@ -188,7 +188,9 @@ handleEvents peer = awaitForever $ \msg -> do
                when (not verified) $ error "headers don't match bodies"
                --when (length headers /= length bodies) $ error "not enough bodies returned"
                logInfoN $ T.pack $ "len headers is " ++ show (length headers) ++ ", len bodies is " ++ show (length bodies)
-               newCount <- lift $ setTitleAndProduceBlocks $ zipWith createBlockFromHeaderAndBody headers bodies
+               let blocks' = zipWith createBlockFromHeaderAndBody headers bodies
+               newCount <- lift $ setTitleAndProduceBlocks blocks'
+               forM_ blocks' $ lift . emitKafkaBlock (Origin.PeerString $ peerString peer) 
                let remainingHeaders = drop (length bodies) headers
                lift $ putBlockHeaders remainingHeaders
                if null remainingHeaders
