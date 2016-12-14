@@ -4,7 +4,8 @@ module Executable.StratoP2PClient (
   stratoP2PClient
   ) where
 
-import Control.Concurrent (threadDelay)
+import Control.Concurrent hiding (yield)
+import Control.Concurrent.STM.MonadIO
 import Control.Exception.Lifted
 import Control.Monad.IO.Class
 import Control.Monad.Logger
@@ -20,6 +21,7 @@ import qualified Data.Conduit.Binary as CB
 import qualified Data.Conduit.List as CL
 import Data.Conduit.Network
 import qualified Database.Persist.Postgresql as SQL
+import qualified Data.Set as S
 import qualified Data.Text as T
 import qualified Network.Haskoin.Internals as H
 import System.Random
@@ -57,6 +59,7 @@ import Blockchain.Stream.VMEvent
 import Blockchain.TCPClientWithTimeout
 import Blockchain.TimerSource
 import Blockchain.Util
+import Executable.StratoP2PClientComm
 
 --import Debug.Trace
 
@@ -218,8 +221,8 @@ hPubKeyToPubKey pubKey = Point (fromIntegral x) (fromIntegral y)
 -}
   
 runPeer::(MonadIO m, MonadBaseControl IO m, MonadLogger m, MonadThrow m)=>
-         PPeer->PrivateNumber->m ()
-runPeer peer myPriv = do
+         TVar (S.Set String)->PPeer->PrivateNumber->m ()
+runPeer connectedPeers peer myPriv = do
   let otherPubKey = fromMaybe (error "programmer error- runPeer was called without a pubkey") $ pPeerPubkey peer
   logInfoN $ T.pack $ C.blue "Welcome to strato-p2p-client"
   logInfoN $ T.pack $ C.blue "============================"
@@ -235,6 +238,11 @@ runPeer peer myPriv = do
 
   runTCPClientWithConnectTimeout (clientSettings (pPeerTcpPort peer) $ BC.pack $ T.unpack $ pPeerIp peer) 5 $ \server -> 
       runResourceT $ do
+      
+        let peerString = show (pPeerIp peer) ++ ":" ++ show (pPeerTcpPort peer)
+
+        _ <- modifyTVar connectedPeers $ S.insert peerString
+
         pool <- runNoLoggingT $ SQL.createPostgresqlPool
                 connStr' 20
 
@@ -262,12 +270,15 @@ runPeer peer myPriv = do
             ethEncrypt outCxt $$
             transPipe liftIO (appSink server)
 
+          _ <- modifyTVar connectedPeers $ S.delete peerString
+
+          return ()
 
         return ()
 
 getPubKeyRunPeer::(MonadIO m, MonadBaseControl IO m, MonadLogger m, MonadThrow m)=>
-                  PPeer->m ()
-getPubKeyRunPeer peer = do
+                  TVar (S.Set String)->PPeer->m ()
+getPubKeyRunPeer connectedPeers peer = do
   let PrivKey myPriv = privKey ethConf
 
   case pPeerPubkey peer of
@@ -277,21 +288,21 @@ getPubKeyRunPeer peer = do
       case eitherOtherPubKey of
             Right otherPubKey -> do
               logInfoN $ T.pack $ "#### Success, the pubkey has been obtained: " ++ format otherPubKey
-              runPeer peer{pPeerPubkey=Just otherPubKey} myPriv
+              runPeer connectedPeers peer{pPeerPubkey=Just otherPubKey} myPriv
             Left e -> logInfoN $ T.pack $ "Error, couldn't get public key for peer: " ++ show e
-    Just _ -> runPeer peer myPriv
+    Just _ -> runPeer connectedPeers peer myPriv
                       
 
 runPeerInList::(MonadIO m, MonadBaseControl IO m, MonadLogger m, MonadThrow m)=>
                --[(String, PortNumber, Maybe Point)]->Maybe Int->m ()
-               [PPeer]->Int->m ()
-runPeerInList peers peerNumber = do
+               TVar (S.Set String)->[PPeer]->Int->m ()
+runPeerInList connectedPeers peers peerNumber = do
 
   let thePeer = peers !! peerNumber
 
   liftIO $ disablePeerForSeconds thePeer 60 --don't connect to a peer more than once per minute, out of politeness
   
-  getPubKeyRunPeer thePeer
+  getPubKeyRunPeer connectedPeers thePeer
                
 stratoP2PClient::[String]->LoggingT IO ()    
 stratoP2PClient args = do
@@ -301,7 +312,10 @@ stratoP2PClient args = do
           [x] -> return $ read x
           _ -> error "usage: ethereumH [servernum]"
 
+
+  connectedPeers <- newTVar S.empty
   
+  _ <- liftIO $ forkIO $ runStratoP2PClientComm connectedPeers
 
   forever $ do
     peers <-
@@ -318,7 +332,7 @@ stratoP2PClient args = do
          case maybePeerNumber of
           Just x -> return x
           Nothing -> liftIO $ randomRIO (0, length peers - 1)
-       result <- try $ runPeerInList peers peerNumber
+       result <- try $ runPeerInList connectedPeers peers peerNumber
        case result of
         Left e | Just (ErrorCall x) <- fromException e -> error x
         Left e -> do
