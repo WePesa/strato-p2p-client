@@ -80,7 +80,7 @@ handleMsg::(MonadIO m, MonadState Context m, HasSQLDB m, MonadLogger m)=>
 handleMsg myId peer = do
   yield $ Hello {
               version = 4,
-              clientId = "Ethereum(G)/v0.6.4//linux/Haskell",
+              clientId = stratoVersionString,
               capability = [ETH ethVersion], -- , SHH shhVersion],
               port = 0,
               nodeId = myId
